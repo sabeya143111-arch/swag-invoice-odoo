@@ -29,36 +29,54 @@ if "ai_cache" not in st.session_state:
 if "uploaded_pdf" not in st.session_state:
     st.session_state["uploaded_pdf"] = None
 
-# ---------- UI: LOGO + PREMIUM CSS ----------
+# ---------- UI: LOGO + PREMIUM, TIGHT LAYOUT CSS ----------
 
 logo_col1, logo_col2, logo_col3 = st.columns([1, 2, 1])
 with logo_col2:
+    st.markdown(
+        "<div style='text-align:center; margin-top:6px; margin-bottom:4px;'>",
+        unsafe_allow_html=True,
+    )
     st.image(
         "https://raw.githubusercontent.com/sabeya143111-arch/swag-invoice-odoo/main/swag-invoice-odoo/logo.png",
         use_column_width=False,
-        width=420,
+        width=260,  # chhota + paas
     )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown(
     """
     <style>
-    /* Google Font */
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
     .stApp {
         font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        background: radial-gradient(circle at top left, #020617 0, #020617 35%, #020617 55%, #000000 100%);
+        background: #020617;
         color: #e5e7eb;
     }
 
+    /* Soft radial glow taaki pure black boring na लगे */
+    .stApp::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background:
+            radial-gradient(circle at 0% 0%, rgba(56,189,248,0.16) 0, transparent 55%),
+            radial-gradient(circle at 100% 100%, rgba(129,140,248,0.16) 0, transparent 55%);
+        opacity: 0.9;
+    }
+
+    /* Content ko upar + center + narrow */
     .block-container {
-        padding-top: 0rem;
-        padding-bottom: 0rem;
-        max-width: 1180px;
+        padding-top: 1.4rem;
+        padding-bottom: 1.4rem;
+        max-width: 940px;
+        margin: 0 auto;
     }
 
     .main-title {
-        font-size: 2.7rem;
+        font-size: 2.4rem;
         font-weight: 800;
         letter-spacing: 0.08em;
         background: linear-gradient(120deg, #22c55e, #4ade80, #a855f7, #f97316);
@@ -66,81 +84,81 @@ st.markdown(
         color: transparent;
     }
     .sub-text {
-        font-size: 0.98rem;
+        font-size: 0.95rem;
         color: #e5e7eb;
         opacity: 0.9;
     }
 
     .glass-card {
         background: radial-gradient(circle at top left, rgba(15,23,42,0.98), rgba(15,23,42,0.9));
-        border-radius: 22px;
-        padding: 24px 26px;
-        border: 1px solid rgba(148, 163, 184, 0.55);
-        box-shadow: 0 26px 70px rgba(0, 0, 0, 0.75);
-        backdrop-filter: blur(22px);
+        border-radius: 20px;
+        padding: 20px 22px;
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        box-shadow: 0 22px 60px rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(20px);
     }
 
     .pill-badge {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        font-size: 0.8rem;
-        padding: 5px 12px;
+        font-size: 0.78rem;
+        padding: 4px 11px;
         border-radius: 999px;
         border: 1px solid rgba(52, 211, 153, 0.75);
         color: #bbf7d0;
-        background: linear-gradient(120deg, rgba(22,163,74,0.45), rgba(22,163,74,0.15));
+        background: linear-gradient(120deg, rgba(22,163,74,0.45), rgba(22,163,74,0.18));
     }
 
     .stat-card {
         background: radial-gradient(circle at top left, #020617, #020617 55%, #020617);
-        border-radius: 18px;
-        padding: 16px 18px;
-        border: 1px solid rgba(55, 65, 81, 0.95);
+        border-radius: 16px;
+        padding: 14px 16px;
+        border: 1px solid rgba(55, 65, 81, 0.9);
         transition: all 0.22s ease;
     }
     .stat-card:hover {
         border-color: rgba(129, 230, 217, 0.9);
-        box-shadow: 0 18px 34px rgba(15, 118, 110, 0.55);
+        box-shadow: 0 16px 32px rgba(15, 118, 110, 0.55);
         transform: translateY(-2px);
     }
 
     .stat-label {
-        font-size: 0.72rem;
+        font-size: 0.7rem;
         text-transform: uppercase;
         color: #9ca3af;
         letter-spacing: 0.14em;
     }
     .stat-value {
-        font-size: 1.7rem;
+        font-size: 1.6rem;
         font-weight: 700;
         color: #22c55e;
-        margin-top: 4px;
+        margin-top: 2px;
     }
 
     .dataframe-container {
-        border-radius: 16px;
+        border-radius: 14px;
         border: 1px solid rgba(148, 163, 184, 0.6);
         overflow: hidden;
-        box-shadow: 0 20px 42px rgba(15, 23, 42, 0.95);
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.95);
     }
 
     .success-badge {
         background: linear-gradient(120deg, rgba(22,163,74,0.18), rgba(34,197,94,0.14));
         color: #bbf7d0;
-        padding: 12px 16px;
-        border-radius: 12px;
+        padding: 11px 14px;
+        border-radius: 11px;
         border-left: 4px solid #22c55e;
-        font-size: 0.92rem;
-        margin: 12px 0;
+        font-size: 0.9rem;
+        margin: 10px 0;
     }
     .warning-badge {
         background: linear-gradient(120deg, rgba(248,171,89,0.22), rgba(248,113,113,0.15));
         color: #fed7aa;
-        padding: 10px 14px;
-        border-radius: 12px;
+        padding: 9px 13px;
+        border-radius: 11px;
         border-left: 4px solid #f97316;
-        font-size: 0.9rem;
+        font-size: 0.88rem;
         margin: 8px 0;
     }
 
@@ -148,25 +166,26 @@ st.markdown(
         font-size: 0.8rem;
         color: #9ca3af;
         text-align: center;
-        margin-top: 18px;
+        margin-top: 16px;
     }
 
     .stButton > button {
         font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
         border-radius: 999px;
-        padding: 0.55rem 1.45rem;
+        padding: 0.48rem 1.3rem;
         border: 1px solid rgba(34,197,94,0.85);
         background: linear-gradient(135deg, #22c55e, #16a34a);
         color: #000000;
         font-weight: 600;
         letter-spacing: 0.04em;
-        box-shadow: 0 16px 34px rgba(34,197,94,0.55);
+        box-shadow: 0 14px 30px rgba(34,197,94,0.5);
         transition: all 0.2s ease;
+        font-size: 0.88rem;
     }
     .stButton > button:hover {
         background: linear-gradient(135deg, #4ade80, #22c55e);
         transform: translateY(-1px);
-        box-shadow: 0 22px 46px rgba(34,197,94,0.7);
+        box-shadow: 0 20px 40px rgba(34,197,94,0.65);
     }
 
     .stTextInput > div > input, .stNumberInput input {
@@ -175,6 +194,8 @@ st.markdown(
         border: 1px solid rgba(148,163,184,0.8);
         background: rgba(15,23,42,0.96);
         color: #e5e7eb;
+        font-size: 0.86rem;
+        padding-left: 14px;
     }
     .stTextInput > div > input:focus, .stNumberInput input:focus {
         border-color: rgba(56,189,248,0.95);
@@ -182,14 +203,15 @@ st.markdown(
     }
 
     .stTabs [data-baseweb="tab-list"] {
-        gap: 0.4rem;
+        gap: 0.35rem;
     }
     .stTabs [data-baseweb="tab"] {
         font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-        padding: 0.35rem 0.9rem;
+        padding: 0.3rem 0.85rem;
         border-radius: 999px;
-        background-color: rgba(15,23,42,0.9);
+        background-color: rgba(15,23,42,0.95);
         border: 1px solid rgba(55,65,81,0.85);
+        font-size: 0.8rem;
     }
     .stTabs [aria-selected="true"] {
         background: linear-gradient(120deg, #22c55e, #16a34a);
@@ -201,7 +223,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---------- HELPERS: PDF PARSE (same as before) ----------
+# ---------- HELPERS: PDF PARSE ----------
 
 def detect_pdf_structure(text: str):
     lines = [" ".join(ln.split()) for ln in text.split("\n") if ln.strip()]
@@ -385,7 +407,7 @@ Keep answer concise, max 20 bullets.
 
 # ---------- LAYOUT TOP ----------
 
-left, right = st.columns([1.3, 1])
+left, right = st.columns([1.25, 1])
 
 with left:
     st.markdown(
@@ -395,7 +417,7 @@ with left:
                 🧾 Auto Invoice → Odoo
                 <span style="opacity:0.7;">• SWAG internal tool</span>
             </div>
-            <div style="margin-top: 8px;"></div>
+            <div style="margin-top: 6px;"></div>
             <div class="main-title">
                 SWAG Invoice → Odoo Excel + AI
             </div>
@@ -586,7 +608,7 @@ if uploaded_pdf is not None and convert_clicked:
 
             st.markdown(
                 f"""
-                <p style="font-size:0.9rem;color:#9ca3af;margin-top:8px;">
+                <p style="font-size:0.9rem;color:#9ca3af;margin-top:6px;">
                     Vendor <b>{vendor_name}</b> • Discount <b>{discount_pct:.1f}%</b> • VAT <b>{vat_pct:.1f}%</b>
                 </p>
                 """,
