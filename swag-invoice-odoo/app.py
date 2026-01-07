@@ -2,18 +2,27 @@ import streamlit as st
 import pdfplumber
 import pandas as pd
 import re
+import json
+import requests
 from io import BytesIO
 from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.utils import get_column_letter
 
-# ---------- Page Config & Theme ----------
+# ---------- CONFIG ----------
+
 st.set_page_config(layout="wide")
 
-# Session history init
+HF_API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"  # example model
+# Streamlit Cloud / local: add in .streamlit/secrets.toml -> HF_API_TOKEN="xxx"
+HF_API_TOKEN = st.secrets.get("HF_API_TOKEN", "")
+
 if "history" not in st.session_state:
     st.session_state["history"] = []
+if "ai_cache" not in st.session_state:
+    st.session_state["ai_cache"] = {}
 
-# ========== Logo Display (center, min gap) ==========
+# ---------- UI: LOGO + CSS ----------
+
 logo_col1, logo_col2, logo_col3 = st.columns([1, 2, 1])
 with logo_col2:
     st.image(
@@ -22,7 +31,6 @@ with logo_col2:
         width=420,
     )
 
-# ---------- Custom CSS ----------
 st.markdown(
     """
     <style>
@@ -30,11 +38,7 @@ st.markdown(
         background: radial-gradient(circle at top left, #0f172a 0, #020617 45%, #000000 100%);
         color: #e5e7eb;
     }
-
-    .block-container {
-        padding-top: 0rem;
-        padding-bottom: 0rem;
-    }
+    .block-container { padding-top: 0rem; padding-bottom: 0rem; }
 
     .main-title {
         font-size: 2.6rem;
@@ -65,7 +69,6 @@ st.markdown(
         color: #ffffff;
         background: rgba(22, 101, 52, 0.35);
     }
-
     .stat-card {
         background: rgba(15, 23, 42, 0.95);
         border-radius: 16px;
@@ -89,43 +92,11 @@ st.markdown(
         color: #22c55e;
         margin-top: 4px;
     }
-
-    .stTextInput > label { color: #ffffff !important; }
-    .stTextInput > div > div > input {
-        background-color: #ffffff;
-        color: #000000;
-    }
-    [data-testid="stFileUploader"] label { color: #ffffff !important; }
-
-    .uploadedFile {
-        border-radius: 12px !important;
-        border: 1px dashed rgba(148, 163, 184, 0.7) !important;
-        background: rgba(15, 23, 42, 0.7) !important;
-    }
-
-    .stButton>button {
-        width: 100%;
-        border-radius: 999px;
-        background: linear-gradient(90deg, #22c55e, #16a34a);
-        color: #0b1120;
-        font-weight: 700;
-        border: none;
-        padding: 0.7rem 1rem;
-        box-shadow: 0 10px 24px rgba(22, 163, 74, 0.55);
-        transition: all 0.3s ease;
-    }
-    .stButton>button:hover {
-        background: linear-gradient(90deg, #4ade80, #22c55e);
-        box-shadow: 0 18px 36px rgba(34, 197, 94, 0.7);
-        transform: translateY(-2px);
-    }
-
     .dataframe-container {
         border-radius: 14px;
         border: 1px solid rgba(148, 163, 184, 0.5);
         overflow: hidden;
     }
-
     .success-badge {
         background: rgba(34, 197, 94, 0.15);
         color: #22c55e;
@@ -155,16 +126,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---------- Helpers ----------
+# ---------- HELPERS: PDF PARSE ----------
 
 def detect_pdf_structure(text: str):
-    """
-    PDF ka structure detect kare - columns identify kare.
-    Returns: {columns detected, sample rows}
-    """
     lines = [" ".join(ln.split()) for ln in text.split("\n") if ln.strip()]
-    
-    # Common column patterns detect kare
     structure = {
         "has_sr": any("SR" in ln for ln in lines[:50]),
         "has_model": any(re.search(r"[A-Z]{2,}\-\d+", ln) for ln in lines[:50]),
@@ -172,39 +137,28 @@ def detect_pdf_structure(text: str):
         "has_price": any(re.search(r"\bPrice\b|\bAmount\b|\bCost\b", ln, re.I) for ln in lines[:50]),
         "total_lines": len(lines),
     }
-    
     return structure, lines
 
 
 def extract_item_lines_generic(text: str, structure: dict):
-    """
-    Different PDF formats handle kare based on detected structure.
-    """
     lines = [" ".join(ln.split()) for ln in text.split("\n") if ln.strip()]
     item_lines = []
-    
+
     if structure["has_sr"]:
-        # SR-based format (original SWAG format)
         for ln in lines:
             if "SR" in ln:
                 sr_amounts = re.findall(r"SR\s*([\d,]+\.\d+)", ln)
-                if len(sr_amounts) >= 1:
-                    if re.search(r"[A-Za-z0-9\-]+\s+\d+$", ln):
-                        item_lines.append(("sr_format", ln))
+                if len(sr_amounts) >= 1 and re.search(r"[A-Za-z0-9\-]+\s+\d+$", ln):
+                    item_lines.append(("sr_format", ln))
     else:
-        # Alternative format - tab/space separated values
         for ln in lines:
-            # Simple check: agar numeric values aur text dono hain
             if re.search(r"\d+", ln) and any(c.isalpha() for c in ln):
-                # Skip headers
                 if not re.search(r"(total|subtotal|invoice|date)", ln, re.I):
                     item_lines.append(("generic_format", ln))
-    
     return item_lines
 
 
 def parse_line_sr_format(ln: str):
-    """Original SR-based parsing."""
     sr_amounts = re.findall(r"SR\s*([\d,]+\.\d+)", ln)
     unit_price = float(sr_amounts[-1].replace(",", "")) if sr_amounts else 0.0
 
@@ -226,42 +180,29 @@ def parse_line_sr_format(ln: str):
 
 
 def parse_line_generic(ln: str):
-    """Generic format ke liye parsing - flexible approach."""
-    # Numbers extract kare
     numbers = re.findall(r"[\d,]+\.?\d*", ln)
-    
-    # Model number (usually format: ABC-123)
     model_match = re.search(r"([A-Z]{2,}\-?\d+)", ln)
     model = model_match.group(1) if model_match else ""
-    
-    # Description (sabkuch jo number aur model nahi hai)
+
     desc = re.sub(r"[A-Z]{2,}\-?\d+", "", ln).strip()
     desc = re.sub(r"[\d,]+\.?\d*", "", desc).strip()
     desc = " ".join(desc.split())
-    
-    # Qty aur price last 2 numbers se assume karo
+
     qty = float(numbers[-2].replace(",", "")) if len(numbers) >= 2 else 0.0
     unit_price = float(numbers[-1].replace(",", "")) if len(numbers) >= 1 else 0.0
-    
+
     return model, desc, qty, unit_price
 
 
 def pdf_to_odoo_df(pdf_file, vendor_name="SWAG TRADING CO.", discount_pct=0.0, vat_pct=0.0):
-    """
-    Dynamic PDF parsing - auto-detect structure aur parse accordingly.
-    """
     with pdfplumber.open(pdf_file) as pdf:
         full_text = ""
         for page in pdf.pages:
             full_text += (page.extract_text() or "") + "\n"
 
-    # Step 1: Detect structure
     structure, lines = detect_pdf_structure(full_text)
-    
-    # Step 2: Extract item lines based on detected structure
     item_lines = extract_item_lines_generic(full_text, structure)
 
-    # Step 3: Parse lines based on format
     records = []
     discount_factor = 1 - (discount_pct / 100)
     vat_factor = 1 + (vat_pct / 100)
@@ -271,10 +212,10 @@ def pdf_to_odoo_df(pdf_file, vendor_name="SWAG TRADING CO.", discount_pct=0.0, v
             model, desc, qty, price = parse_line_sr_format(ln)
         else:
             model, desc, qty, price = parse_line_generic(ln)
-        
+
         if not model:
             continue
-            
+
         line_base = qty * price
         line_total = line_base * discount_factor * vat_factor
         records.append(
@@ -293,7 +234,6 @@ def pdf_to_odoo_df(pdf_file, vendor_name="SWAG TRADING CO.", discount_pct=0.0, v
 
 
 def style_excel_file(buffer):
-    """Excel ko style karo - professional look."""
     from openpyxl import load_workbook
 
     wb = load_workbook(buffer)
@@ -328,7 +268,57 @@ def style_excel_file(buffer):
     wb.save(buffer)
     buffer.seek(0)
 
-# ---------- Layout: left/right top ----------
+# ---------- AI HELPER ----------
+
+def call_hf_ai(prompt: str) -> str:
+    if not HF_API_TOKEN:
+        return "❌ Hugging Face API token missing. Please set HF_API_TOKEN in Streamlit secrets."
+
+    headers = {
+        "Authorization": f"Bearer {HF_API_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    payload = {"inputs": prompt, "max_new_tokens": 400}
+
+    try:
+        r = requests.post(HF_API_URL, headers=headers, data=json.dumps(payload), timeout=80)
+        r.raise_for_status()
+        data = r.json()
+        # For T5 models, output often in 'generated_text' or 'summary_text'
+        if isinstance(data, list) and "generated_text" in data[0]:
+            return data[0]["generated_text"]
+        if isinstance(data, list) and "summary_text" in data[0]:
+            return data[0]["summary_text"]
+        return str(data)
+    except Exception as e:
+        return f"❌ AI request failed: {e}"
+
+def build_invoice_prompt(df: pd.DataFrame, vendor: str, discount: float, vat: float) -> str:
+    sample = df.head(60).to_dict(orient="records")
+    return f"""
+You are a purchase & inventory analyst for a fashion retail company in Saudi Arabia.
+
+Invoice meta:
+- Vendor: {vendor}
+- Global discount: {discount} %
+- VAT: {vat} %
+
+Below is invoice line data as JSON list. Each line has:
+product_id, description, quantity, unit_price, subtotal.
+
+DATA:
+{json.dumps(sample, ensure_ascii=False)}
+
+TASKS (answer in short bullet points, simple English + little Hindi/Urdu mix):
+1) Overall summary: total items, total quantity, total amount (approx).
+2) Top 5 high-value models with qty & amount.
+3) Any suspicious points: very high qty, strange price, duplicates, etc.
+4) Suggestions: stock planning / reorder / price check ideas.
+
+Keep answer concise, max 20 bullets.
+"""
+
+# ---------- LAYOUT TOP ----------
 
 left, right = st.columns([1.3, 1])
 
@@ -342,12 +332,12 @@ with left:
             </div>
             <div style="margin-top: 8px;"></div>
             <div class="main-title">
-                SWAG Invoice → Odoo Excel
+                SWAG Invoice → Odoo Excel + AI
             </div>
             <p class="sub-text">
                 Kisi bhi PDF invoice upload karo, app automatically structure detect karke 
-                clean Excel bana dega jo direct Odoo import me use ho sakta hai. 
-                <br><strong>✨ Multiple PDF formats support karte hain!</strong>
+                clean Excel bana dega jo direct Odoo import me use ho sakta hai.
+                Upar se AI tumhare data ke hisaab se summary, issues aur suggestions bhi dega.
             </p>
         </div>
         """,
@@ -408,30 +398,32 @@ with right:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------- Tabs ----------
-tab_overview, tab_details, tab_debug = st.tabs(["📊 Overview", "📋 Details + "🛠 Debug"])
+# ---------- TABS ----------
+
+tab_overview, tab_details, tab_ai, tab_debug = st.tabs(
+    ["📊 Overview", "📋 Details", "🤖 AI Insights", "🛠 Debug"]
+)
 
 df_odoo = None
 full_text = ""
 item_lines = []
 detected_structure = None
 
-# ---------- Processing ----------
+# ---------- MAIN PROCESS ----------
+
 if uploaded_pdf is not None and convert_clicked:
-    progress = st.progress(0, text="Step 1/4: PDF read ho raha hai...")
+    progress = st.progress(0, text="Step 1/3: PDF read ho raha hai...")
 
     with st.spinner("📄 PDF parse aur structure detect ho rahi hai..."):
-        progress.progress(25, text="Step 2/4: PDF structure detect ho raha hai...")
+        progress.progress(30, text="Step 2/3: Structure detect + data extract...")
         df_odoo, full_text, item_lines, detected_structure = pdf_to_odoo_df(
             uploaded_pdf, vendor_name, discount_pct, vat_pct
         )
-        progress.progress(60, text="Step 3/4: Data clean ho rahi hai...")
+        progress.progress(70, text="Step 3/3: Excel build ho raha hai...")
 
     if df_odoo is None or df_odoo.empty:
         progress.empty()
-        st.error(
-            "❌ Koi item line detect nahi hui. PDF format ya structure check karein."
-        )
+        st.error("❌ Koi item line detect nahi hui. PDF format ya structure check karein.")
     else:
         total_items = len(df_odoo)
         total_qty = float(df_odoo["order_line/product_uom_qty"].sum())
@@ -441,7 +433,6 @@ if uploaded_pdf is not None and convert_clicked:
         progress.progress(100, text="✅ Ho gaya!")
         progress.empty()
 
-        # history update
         st.session_state["history"].insert(
             0,
             {
@@ -453,9 +444,11 @@ if uploaded_pdf is not None and convert_clicked:
         )
         st.session_state["history"] = st.session_state["history"][:5]
 
-        # ===== Overview tab =====
+        # ===== OVERVIEW =====
         with tab_overview:
-            format_detected = "SR-based format (SWAG original)" if detected_structure.get("has_sr") else "Generic flexible format"
+            format_detected = (
+                "SR-based format (SWAG original)" if detected_structure.get("has_sr") else "Generic flexible format"
+            )
             st.markdown(
                 f"""
                 <div class="success-badge">
@@ -534,17 +527,17 @@ if uploaded_pdf is not None and convert_clicked:
                 st.markdown("### 🕒 Recent conversions")
                 st.table(st.session_state["history"])
 
-        # ===== Details + Graph tab =====
+        # ===== DETAILS =====
         with tab_details:
             st.markdown("### 🔍 Filters")
             f1, f2 = st.columns(2)
             with f1:
                 min_qty = st.number_input(
-                    "Minimum quantity", min_value=0.0, value=0.0, step=1.0
+                    "Minimum quantity", min_value=0.0, value=0.0, step=1.0, key="min_qty"
                 )
             with f2:
                 min_amount = st.number_input(
-                    "Minimum line amount (SR)", min_value=0.0, value=0.0, step=10.0
+                    "Minimum line amount (SR)", min_value=0.0, value=0.0, step=10.0, key="min_amt"
                 )
 
             filtered_df = df_odoo[
@@ -556,23 +549,6 @@ if uploaded_pdf is not None and convert_clicked:
             st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
             st.dataframe(filtered_df, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
-
-            # Graph: quantity vs amount by product
-            st.markdown("#### 📈 Quantity vs Amount by Product")
-            agg_df = (
-                df_odoo
-                .groupby("order_line/product_id", as_index=False)
-                .agg(
-                    total_qty=("order_line/product_uom_qty", "sum"),
-                    total_amount=("order_line/price_subtotal", "sum"),
-                )
-                .sort_values("total_amount", ascending=False)
-                .head(15)
-            )
-            if not agg_df.empty:
-                st.bar_chart(
-                    agg_df.set_index("order_line/product_id")[["total_qty", "total_amount"]]
-                )
 
             top5 = df_odoo.sort_values(
                 "order_line/price_subtotal", ascending=False
@@ -589,27 +565,52 @@ if uploaded_pdf is not None and convert_clicked:
                 label="⬇️ Download Styled Excel (Ready for Odoo Import)",
                 data=buffer,
                 file_name="odoo_purchase_orders.xlsx",
-                mime=(
-                    "application/vnd.openxmlformats-officedocument."
-                    "spreadsheetml.sheet"
-                ),
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
 
             st.markdown(
                 """
                 <div class="footer-note">
-                    💡 App automatically detect karta hai ki PDF ka format kya hai 
-                    aur usi hisaab se data extract karta hai!
+                    💡 Excel file automatically color-coded aur formatted hai, 
+                    bilkul Odoo import ke liye ready!
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-        # ===== Debug tab =====
+        # ===== AI INSIGHTS =====
+        with tab_ai:
+            st.markdown("### 🤖 AI Insights (invoice ke hisaab se)")
+            if HF_API_TOKEN == "":
+                st.error("Hugging Face API token set nahi hai. `.streamlit/secrets.toml` me HF_API_TOKEN daalo.")
+            else:
+                if st.button("Generate AI Insights"):
+                    key = f"{uploaded_pdf.name}_{total_items}_{total_subtotal}"
+                    if key in st.session_state["ai_cache"]:
+                        ai_text = st.session_state["ai_cache"][key]
+                    else:
+                        with st.spinner("AI se analyze ho raha hai... (30–60 sec lag sakte hain)"):
+                            prompt = build_invoice_prompt(df_odoo, vendor_name, discount_pct, vat_pct)
+                            ai_text = call_hf_ai(prompt)
+                            st.session_state["ai_cache"][key] = ai_text
+
+                    st.markdown(ai_text)
+
+                st.markdown(
+                    """
+                    <div class="footer-note">
+                        Note: Ye AI sirf internal helper hai – final decision hamesha 
+                        tumhare business logic ke hisaab se lo.
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+        # ===== DEBUG =====
         with tab_debug:
             st.markdown("### 🔍 Detected PDF Structure")
             st.json(detected_structure)
-            
+
             st.markdown("#### Raw text (first 2500 chars)")
             st.code(full_text[:2500])
 
@@ -620,5 +621,4 @@ if uploaded_pdf is not None and convert_clicked:
 
 elif uploaded_pdf is None:
     with tab_overview:
-        st.info("📂 Upar se PDF select karo. Ye app kisi bhi format ka PDF handle kar sakta hai!")
-
+        st.info("📂 Upar se PDF select karo start karne ke liye.")
