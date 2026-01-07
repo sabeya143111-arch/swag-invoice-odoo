@@ -8,14 +8,10 @@ from io import BytesIO
 
 
 # ========== Logo Display ==========
-# ---- HERO / LOGO SECTION ----
-col1, col2, col3 = st.columns([1, 3, 1])
-
-with col2:
-    st.image(
-        "https://raw.githubusercontent.com/sabeya143111-arch/swag-invoice-odoo/main/swag-invoice-odoo/logo.jpeg",
-        use_column_width=True,
-    )
+st.image(
+    "https://raw.githubusercontent.com/sabeya143111-arch/swag-invoice-odoo/main/swag-invoice-odoo/logo.png",
+    use_column_width=True,
+)
 
 
 # Custom CSS for better UI
@@ -352,6 +348,7 @@ if uploaded_pdf is not None and convert_clicked:
         )
 elif uploaded_pdf is None:
     st.info("Upar se PDF select karo start karne ke liye.")
+
 
 
 
