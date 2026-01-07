@@ -13,16 +13,14 @@ st.set_page_config(layout="wide")
 if "history" not in st.session_state:
     st.session_state["history"] = []
 
-# ========== Logo Display (center, tight gap) ==========
+# ========== Logo Display (center, min gap) ==========
 logo_col1, logo_col2, logo_col3 = st.columns([1, 2, 1])
 with logo_col2:
     st.image(
         "https://raw.githubusercontent.com/sabeya143111-arch/swag-invoice-odoo/main/swag-invoice-odoo/logo.png",
-        use_column_width=True,
+        use_column_width=False,
+        width=420,  # yahan se logo ka size control kar sakte ho
     )
-
-# chhota spacer (4px)
-st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
 
 # ---------- Custom CSS ----------
 st.markdown(
@@ -32,7 +30,12 @@ st.markdown(
         background: radial-gradient(circle at top left, #0f172a 0, #020617 45%, #000000 100%);
         color: #e5e7eb;
     }
-    .block-container { padding-top: 0rem; }
+
+    /* Top/bottom padding bilkul kam */
+    .block-container {
+        padding-top: 0rem;
+        padding-bottom: 0rem;
+    }
 
     .main-title {
         font-size: 2.6rem;
@@ -532,7 +535,9 @@ if uploaded_pdf is not None and convert_clicked:
             st.markdown(
                 """
                 <div class="footer-note">
-                    
+                    💡 Pro Tip: Excel file automatically color-coded aur formatted hai, 
+                    bilkul Odoo import ke liye ready!
+                </div>
                 """,
                 unsafe_allow_html=True,
             )
@@ -548,4 +553,3 @@ if uploaded_pdf is not None and convert_clicked:
 elif uploaded_pdf is None:
     with tab_overview:
         st.info("📂 Upar se PDF select karo start karne ke liye.")
-
