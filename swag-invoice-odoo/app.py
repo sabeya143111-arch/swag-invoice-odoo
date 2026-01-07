@@ -182,7 +182,7 @@ st.markdown(
         box-shadow: 0 0 0 1px rgba(56,189,248,0.9);
     }
     </style>
-    """,
+
     unsafe_allow_html=True,
 )
 
@@ -686,4 +686,5 @@ if uploaded_pdf is not None and convert_clicked:
 elif uploaded_pdf is None:
     with tab_overview:
         st.info("📂 Upar se PDF select karo start karne ke liye.")
+
 
