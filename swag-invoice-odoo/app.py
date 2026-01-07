@@ -14,7 +14,7 @@ from openpyxl.utils import get_column_letter
 
 st.set_page_config(layout="wide")
 
-# HF token directly set (AI chalega turant)
+# HF token directly set (demo ke liye)
 HF_TOKEN = "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"
 
 client = OpenAI(
@@ -275,7 +275,7 @@ def style_excel_file(buffer):
     wb.save(buffer)
     buffer.seek(0)
 
-# ---------- AI HELPER (OpenAI client via HF router) ----------
+# ---------- AI HELPER ----------
 
 def analyze_invoice_with_ai(df: pd.DataFrame, vendor: str, discount: float, vat: float) -> str:
     if not HF_TOKEN:
@@ -582,7 +582,9 @@ if uploaded_pdf is not None and convert_clicked:
                 st.error("HF_TOKEN set nahi hai. `.streamlit/secrets.toml` me HF_TOKEN daalo.")
             else:
                 key = f"{uploaded_pdf.name}_{total_items}_{total_subtotal}"
-                if st.button("Generate AI Insights"):
+                generate_clicked = st.button("Generate AI Insights")
+
+                if generate_clicked:
                     if key in st.session_state["ai_cache"]:
                         ai_text = st.session_state["ai_cache"][key]
                     else:
