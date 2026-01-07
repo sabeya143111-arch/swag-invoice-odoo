@@ -72,7 +72,7 @@ st.markdown(
         padding: 4px 10px;
         border-radius: 999px;
         border: 1px solid rgba(52, 211, 153, 0.45);
-        color: #a7f3d0;
+        color: #ffffff ;
         background: rgba(22, 101, 52, 0.35);
     }
 
@@ -86,14 +86,14 @@ st.markdown(
     .stat-label {
         font-size: 0.7rem;
         text-transform: uppercase;
-        color: #9ca3af;
+        color: #ffffff ;
         letter-spacing: 0.08em;
     }
 
     .stat-value {
         font-size: 1.4rem;
         font-weight: 700;
-        color: #e5e7eb;
+        color: #ffffff ;
     }
 
     /* File uploader tweak */
@@ -360,6 +360,7 @@ if uploaded_pdf is not None and convert_clicked:
         )
 elif uploaded_pdf is None:
     st.info("Upar se PDF select karo start karne ke liye.")
+
 
 
 
