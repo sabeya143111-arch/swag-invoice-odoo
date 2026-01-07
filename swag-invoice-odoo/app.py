@@ -8,7 +8,7 @@ from io import BytesIO
 
 
 # ========== Logo Display ==========
-st.image("WhatsApp Image 2025-12-28 at 12.21.23.jpeg", width=250)
+st.image("logo.jpeg", width=250)
 st.markdown("---")
 
 st.set_page_config(
@@ -348,4 +348,5 @@ if uploaded_pdf is not None and convert_clicked:
         )
 elif uploaded_pdf is None:
     st.info("Upar se PDF select karo start karne ke liye.")
+
 
