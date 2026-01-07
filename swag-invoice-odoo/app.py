@@ -6,14 +6,20 @@ from io import BytesIO
 
 import streamlit as st
 
+import streamlit as st
+import pdfplumber
+import pandas as pd
+import re
+from io import BytesIO
+import streamlit as st
+
 # ---- GLOBAL CSS (background, image etc.) ----
 st.markdown(
     """
     <style>
     .stApp {
-        background-color: #020514;      /* pura page dark */
+        background-color: #020514; /* pura page dark */
     }
-
     /* optional: logo image ke around white bg hatane ke liye */
     img {
         background: transparent;
@@ -22,6 +28,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 
 
 # ---------- Page Config & Theme ----------
@@ -45,7 +52,33 @@ st.markdown(
     .stApp {
         background: radial-gradient(circle at top left, #0f172a 0, #020617 45%, #000000 100%);
         color: #e5e7eb;
+   
+    # Custom CSS for better UI
+st.markdown(
+    """
+    <style>
+    /* Background gradient */
+    .stApp {
+        background: radial-gradient(...);
+        color: #e5e7eb;
     }
+    ...
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    }
+    
 
     /* Main title */
     .main-title {
@@ -368,6 +401,7 @@ if uploaded_pdf is not None and convert_clicked:
         )
 elif uploaded_pdf is None:
     st.info("Upar se PDF select karo start karne ke liye.")
+
 
 
 
