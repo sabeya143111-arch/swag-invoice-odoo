@@ -14,8 +14,8 @@ from openpyxl.utils import get_column_letter
 
 st.set_page_config(layout="wide")
 
-# HF token from Streamlit secrets (safe)
-HF_TOKEN = st.secrets.get("HF_TOKEN", "")
+# HF token directly set (AI chalega turant)
+HF_TOKEN = "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"
 
 client = OpenAI(
     base_url="https://router.huggingface.co/v1",
@@ -310,7 +310,6 @@ Keep answer concise, max 20 bullets.
             model="moonshotai/Kimi-K2-Instruct-0905",
             messages=[{"role": "user", "content": prompt}],
         )
-        # OpenAI-style response object
         return completion.choices[0].message.content
     except Exception as e:
         return f"❌ AI request failed: {e}"
