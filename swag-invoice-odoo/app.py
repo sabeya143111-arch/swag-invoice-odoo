@@ -351,12 +351,10 @@ if uploaded_pdf is not None and convert_clicked:
 
         st.markdown(
             """
-            <div class="footer-note">
-                Tip: Agar koi line miss ho rahi ho toh sample invoice bhej do,
-                parser aur improve kiya ja sakta hai.
-            </div>
+           
             """,
             unsafe_allow_html=True,
         )
 elif uploaded_pdf is None:
     st.info("Upar se PDF select karo start karne ke liye.")
+
