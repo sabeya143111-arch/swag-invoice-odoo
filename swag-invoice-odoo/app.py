@@ -8,14 +8,15 @@ from io import BytesIO
 
 
 # ========== Logo Display ==========
-st.image("https://raw.githubusercontent.com/sabeya143111-arch/swag-invoice-odoo/main/swag-invoice-odoo/logo.jpeg", width=350)
-st.markdown("---")
+# ---- HERO / LOGO SECTION ----
+col1, col2, col3 = st.columns([1, 3, 1])
 
-st.set_page_config(
-    page_title="SWAG Invoice → Odoo",
-    page_icon="🧾",
-    layout="wide",
-)
+with col2:
+    st.image(
+        "https://raw.githubusercontent.com/sabeya143111-arch/swag-invoice-odoo/main/swag-invoice-odoo/logo.jpeg",
+        use_column_width=True,
+    )
+
 
 # Custom CSS for better UI
 st.markdown(
@@ -351,6 +352,7 @@ if uploaded_pdf is not None and convert_clicked:
         )
 elif uploaded_pdf is None:
     st.info("Upar se PDF select karo start karne ke liye.")
+
 
 
 
