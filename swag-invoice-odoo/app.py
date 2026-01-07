@@ -7,14 +7,14 @@ from io import BytesIO
 # ---------- Page Config & Theme ----------
 st.set_page_config(layout="wide")
 
-# ========== Logo Display (gap kam) ==========
-st.image(
-    "https://raw.githubusercontent.com/sabeya143111-arch/swag-invoice-odoo/main/swag-invoice-odoo/logo.png",
-    use_column_width=False,
-    width=520,   # chhota / bada chahiye to yahan number change karo
-)
+# ========== Logo Display (center) ==========
+logo_col1, logo_col2, logo_col3 = st.columns([1, 2, 1])
+with logo_col2:
+    st.image(
+        "https://raw.githubusercontent.com/sabeya143111-arch/swag-invoice-odoo/main/swag-invoice-odoo/logo.png",
+        use_column_width=True,
+    )
 
-# chhota spacer only 12px
 st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 
 # ---------- Custom CSS for better UI ----------
@@ -27,7 +27,7 @@ st.markdown(
         color: #e5e7eb;
     }
 
-    /* Top padding kam karein */
+    /* Top padding */
     .block-container {
         padding-top: 0.5rem;
     }
@@ -89,10 +89,18 @@ st.markdown(
         color: #ffffff;
     }
 
-    /* Text input ko white background */
+    /* Text input ko white label + white box */
+    .stTextInput > label {
+        color: #ffffff !important;
+    }
     .stTextInput > div > div > input {
         background-color: #ffffff;
         color: #000000;
+    }
+
+    /* File uploader label white */
+    [data-testid="stFileUploader"] label {
+        color: #ffffff !important;
     }
 
     /* File uploader tweak */
