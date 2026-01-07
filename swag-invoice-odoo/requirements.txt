@@ -2,3 +2,6 @@ streamlit
 pdfplumber
 pandas
 openpyxl
+openai>=1.6.0
+
+
