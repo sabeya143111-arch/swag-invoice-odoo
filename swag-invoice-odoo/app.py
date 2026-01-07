@@ -532,9 +532,7 @@ if uploaded_pdf is not None and convert_clicked:
             st.markdown(
                 """
                 <div class="footer-note">
-                    💡 Pro Tip: Excel file automatically color-coded aur formatted hai, 
-                    bilkul Odoo import ke liye ready!
-                </div>
+                    
                 """,
                 unsafe_allow_html=True,
             )
@@ -550,3 +548,4 @@ if uploaded_pdf is not None and convert_clicked:
 elif uploaded_pdf is None:
     with tab_overview:
         st.info("📂 Upar se PDF select karo start karne ke liye.")
+
