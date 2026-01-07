@@ -14,7 +14,7 @@ from openpyxl.utils import get_column_letter
 
 st.set_page_config(layout="wide")
 
-# HF token directly set (demo ke liye)
+# HF token directly set (demo)
 HF_TOKEN = "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"
 
 client = OpenAI(
@@ -22,10 +22,13 @@ client = OpenAI(
     api_key=HF_TOKEN,
 )
 
+# Session state init
 if "history" not in st.session_state:
     st.session_state["history"] = []
 if "ai_cache" not in st.session_state:
     st.session_state["ai_cache"] = {}
+if "uploaded_pdf" not in st.session_state:
+    st.session_state["uploaded_pdf"] = None
 
 # ---------- UI: LOGO + CSS ----------
 
@@ -347,11 +350,17 @@ with left:
         help="Odoo ka vendor / partner name likho.",
     )
 
-    uploaded_pdf = st.file_uploader(
+    uploaded_pdf_widget = st.file_uploader(
         "Invoice PDF upload karein (kisi bhi format)",
         type=["pdf"],
         help="SWAG ya kisi aur supplier ka invoice (PDF).",
     )
+
+    # naya file aaye to session_state me save
+    if uploaded_pdf_widget is not None:
+        st.session_state["uploaded_pdf"] = uploaded_pdf_widget
+
+    uploaded_pdf = st.session_state["uploaded_pdf"]
 
     with st.expander("⚙️ Advanced settings", expanded=False):
         discount_pct = st.number_input("Global discount %", 0.0, 100.0, 0.0, 0.5)
