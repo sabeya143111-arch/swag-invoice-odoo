@@ -4,6 +4,26 @@ import pandas as pd
 import re
 from io import BytesIO
 
+import streamlit as st
+
+# ---- GLOBAL CSS (background, image etc.) ----
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-color: #020514;      /* pura page dark */
+    }
+
+    /* optional: logo image ke around white bg hatane ke liye */
+    img {
+        background: transparent;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
 # ---------- Page Config & Theme ----------
 
 
@@ -348,6 +368,7 @@ if uploaded_pdf is not None and convert_clicked:
         )
 elif uploaded_pdf is None:
     st.info("Upar se PDF select karo start karne ke liye.")
+
 
 
 
