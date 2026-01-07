@@ -3,13 +3,13 @@ import pdfplumber
 import pandas as pd
 import re
 from io import BytesIO
-from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.utils import get_column_letter
 
 # ---------- Page Config & Theme ----------
 st.set_page_config(layout="wide")
 
-# ========== Logo Display (gap hatao) ==========
+# ========== Logo Display (center) ==========
 logo_col1, logo_col2, logo_col3 = st.columns([1, 2, 1])
 with logo_col2:
     st.image(
@@ -21,18 +21,15 @@ with logo_col2:
 st.markdown(
     """
     <style>
-    /* Background gradient */
     .stApp {
         background: radial-gradient(circle at top left, #0f172a 0, #020617 45%, #000000 100%);
         color: #e5e7eb;
     }
 
-    /* Top padding kam */
     .block-container {
         padding-top: 0.3rem;
     }
 
-    /* Main title */
     .main-title {
         font-size: 2.6rem;
         font-weight: 800;
@@ -47,7 +44,6 @@ st.markdown(
         color: #ffffff;
     }
 
-    /* Card style */
     .glass-card {
         background: rgba(15, 23, 42, 0.92);
         border-radius: 18px;
@@ -96,7 +92,6 @@ st.markdown(
         margin-top: 4px;
     }
 
-    /* Text input label + box white */
     .stTextInput > label {
         color: #ffffff !important;
     }
@@ -105,19 +100,16 @@ st.markdown(
         color: #000000;
     }
 
-    /* File uploader label white */
     [data-testid="stFileUploader"] label {
         color: #ffffff !important;
     }
 
-    /* File uploader tweak */
     .uploadedFile {
         border-radius: 12px !important;
         border: 1px dashed rgba(148, 163, 184, 0.7) !important;
         background: rgba(15, 23, 42, 0.7) !important;
     }
 
-    /* Buttons */
     .stButton>button {
         width: 100%;
         border-radius: 999px;
@@ -135,14 +127,12 @@ st.markdown(
         transform: translateY(-2px);
     }
 
-    /* Dataframe container */
     .dataframe-container {
         border-radius: 14px;
         border: 1px solid rgba(148, 163, 184, 0.5);
         overflow: hidden;
     }
 
-    /* Success message */
     .success-badge {
         background: rgba(34, 197, 94, 0.15);
         color: #22c55e;
@@ -153,7 +143,16 @@ st.markdown(
         margin: 12px 0;
     }
 
-    /* Info text bottom */
+    .warning-badge {
+        background: rgba(248, 171, 89, 0.10);
+        color: #fdba74;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border-left: 4px solid #f97316;
+        font-size: 0.85rem;
+        margin: 8px 0;
+    }
+
     .footer-note {
         font-size: 0.78rem;
         color: #6b7280;
@@ -222,7 +221,7 @@ def pdf_to_odoo_df(pdf_file, vendor_name="SWAG TRADING CO."):
         model, desc, qty, price = parse_line(ln)
         if not model:
             continue
-        total_price = qty * price  # ek line ka total
+        total_price = qty * price
         records.append(
             {
                 "partner_id/name": vendor_name,
@@ -230,7 +229,7 @@ def pdf_to_odoo_df(pdf_file, vendor_name="SWAG TRADING CO."):
                 "order_line/name": desc,
                 "order_line/product_uom_qty": qty,
                 "order_line/price_unit": price,
-                "order_line/price_subtotal": total_price,  # naya column
+                "order_line/price_subtotal": total_price,
             }
         )
 
@@ -238,30 +237,26 @@ def pdf_to_odoo_df(pdf_file, vendor_name="SWAG TRADING CO."):
 
 
 def style_excel_file(buffer, df):
-    """Excel ko color-coded styling de"""
     from openpyxl import load_workbook
-    
+
     wb = load_workbook(buffer)
     ws = wb.active
-    
-    # Header green
+
     header_fill = PatternFill(start_color="22C55E", end_color="22C55E", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF", size=11)
-    
+
     for cell in ws[1]:
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
-    
-    # Alternating row colors
+
     light_fill = PatternFill(start_color="F0F9FF", end_color="F0F9FF", fill_type="solid")
     for row_idx, row in enumerate(ws.iter_rows(min_row=2, max_row=ws.max_row), start=2):
         if row_idx % 2 == 0:
             for cell in row:
                 cell.fill = light_fill
                 cell.alignment = Alignment(horizontal="left", vertical="center")
-    
-    # Column width auto
+
     for col in ws.columns:
         max_length = 0
         col_letter = get_column_letter(col[0].column)
@@ -272,10 +267,9 @@ def style_excel_file(buffer, df):
             except:
                 pass
         ws.column_dimensions[col_letter].width = max_length + 2
-    
+
     wb.save(buffer)
     buffer.seek(0)
-
 
 # ---------- Layout ----------
 
@@ -368,10 +362,7 @@ if uploaded_pdf is not None and convert_clicked:
         total_items = len(df_odoo)
         total_qty = float(df_odoo["order_line/product_uom_qty"].sum())
         total_unit_sum = float(df_odoo["order_line/price_unit"].sum())
-        total_subtotal = float(df_odoo["order_line/price_subtotal"].sum())  # qty × price
-        
-        # Conversion efficiency (kitna data extract hua)
-        efficiency = (total_items / max(total_items, 1)) * 100
+        total_subtotal = float(df_odoo["order_line/price_subtotal"].sum())
 
         st.markdown(
             f"""
@@ -382,9 +373,23 @@ if uploaded_pdf is not None and convert_clicked:
             unsafe_allow_html=True,
         )
 
-        # Stats 3 columns
+        # Duplicate models warning
+        dupes = df_odoo["order_line/product_id"].value_counts()
+        dupe_models = dupes[dupes > 1]
+        if not dupe_models.empty:
+            ex_models = ", ".join(dupe_models.index.tolist()[:3])
+            st.markdown(
+                f"""
+                <div class="warning-badge">
+                    ⚠️ {len(dupe_models)} models repeated in invoice. 
+                    Example: {ex_models}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
         c1, c2, c3, c4 = st.columns(4)
-        
+
         with c1:
             st.markdown(
                 f"""
@@ -395,7 +400,7 @@ if uploaded_pdf is not None and convert_clicked:
                 """,
                 unsafe_allow_html=True,
             )
-        
+
         with c2:
             st.markdown(
                 f"""
@@ -406,7 +411,7 @@ if uploaded_pdf is not None and convert_clicked:
                 """,
                 unsafe_allow_html=True,
             )
-        
+
         with c3:
             st.markdown(
                 f"""
@@ -417,7 +422,7 @@ if uploaded_pdf is not None and convert_clicked:
                 """,
                 unsafe_allow_html=True,
             )
-        
+
         with c4:
             st.markdown(
                 f"""
@@ -431,17 +436,50 @@ if uploaded_pdf is not None and convert_clicked:
 
         st.divider()
 
-        st.markdown("### 📋 Preview (Odoo import ready)")
+        # Filters
+        st.markdown("### 🔍 Filters")
+        f1, f2 = st.columns(2)
+        with f1:
+            min_qty = st.number_input(
+                "Minimum quantity", min_value=0.0, value=0.0, step=1.0
+            )
+        with f2:
+            min_amount = st.number_input(
+                "Minimum line amount (SR)", min_value=0.0, value=0.0, step=10.0
+            )
 
+        filtered_df = df_odoo[
+            (df_odoo["order_line/product_uom_qty"] >= min_qty)
+            & (df_odoo["order_line/price_subtotal"] >= min_amount)
+        ]
+
+        st.markdown(
+            f"""
+            <p style="font-size:0.9rem;color:#9ca3af;margin-top:8px;">
+                This file contains <b>{total_items}</b> lines for vendor 
+                <b>{vendor_name}</b> with total quantity <b>{total_qty:.0f}</b> 
+                and total amount <b>SR {total_subtotal:,.0f}</b>.
+            </p>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("### 📋 Preview (Filtered lines)")
         st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
-        st.dataframe(df_odoo, use_container_width=True)
+        st.dataframe(filtered_df, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-        # Excel file with styling
+        # Top 5 high value items
+        top5 = df_odoo.sort_values(
+            "order_line/price_subtotal", ascending=False
+        ).head(5)
+        st.markdown("#### 🔝 Top 5 high value lines")
+        st.dataframe(top5, use_container_width=True, height=250)
+
+        # Styled Excel
         buffer = BytesIO()
         with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
             df_odoo.to_excel(writer, index=False, sheet_name="Purchase Orders")
-        
         style_excel_file(buffer, df_odoo)
 
         st.download_button(
@@ -457,7 +495,7 @@ if uploaded_pdf is not None and convert_clicked:
         st.markdown(
             """
             <div class="footer-note">
-                💡 <strong>Pro Tip:</strong> Excel file automatically color-coded aur formatted hai, 
+                💡 Pro Tip: Excel file automatically color-coded aur formatted hai, 
                 bilkul Odoo import ke liye ready!
             </div>
             """,
