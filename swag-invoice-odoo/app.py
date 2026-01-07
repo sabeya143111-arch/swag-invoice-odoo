@@ -51,7 +51,7 @@ st.markdown(
 
     .sub-text {
         font-size: 0.98rem;
-        color: #9ca3af;
+        color: #ffffff ;
     }
 
     /* Card style */
@@ -360,6 +360,7 @@ if uploaded_pdf is not None and convert_clicked:
         )
 elif uploaded_pdf is None:
     st.info("Upar se PDF select karo start karne ke liye.")
+
 
 
 
