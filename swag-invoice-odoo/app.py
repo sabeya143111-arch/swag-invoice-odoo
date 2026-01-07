@@ -3,19 +3,19 @@ import pdfplumber
 import pandas as pd
 import re
 from io import BytesIO
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
 # ---------- Page Config & Theme ----------
 st.set_page_config(layout="wide")
 
-# ========== Logo Display (center) ==========
+# ========== Logo Display (gap hatao) ==========
 logo_col1, logo_col2, logo_col3 = st.columns([1, 2, 1])
 with logo_col2:
     st.image(
         "https://raw.githubusercontent.com/sabeya143111-arch/swag-invoice-odoo/main/swag-invoice-odoo/logo.png",
         use_column_width=True,
     )
-
-st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 
 # ---------- Custom CSS for better UI ----------
 st.markdown(
@@ -27,9 +27,9 @@ st.markdown(
         color: #e5e7eb;
     }
 
-    /* Top padding */
+    /* Top padding kam */
     .block-container {
-        padding-top: 0.5rem;
+        padding-top: 0.3rem;
     }
 
     /* Main title */
@@ -72,24 +72,31 @@ st.markdown(
     .stat-card {
         background: rgba(15, 23, 42, 0.95);
         border-radius: 16px;
-        padding: 14px 16px;
+        padding: 16px 18px;
         border: 1px solid rgba(55, 65, 81, 0.8);
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        border-color: rgba(52, 211, 153, 0.6);
+        box-shadow: 0 8px 16px rgba(52, 211, 153, 0.2);
     }
 
     .stat-label {
         font-size: 0.7rem;
         text-transform: uppercase;
-        color: #ffffff;
+        color: #9ca3af;
         letter-spacing: 0.08em;
     }
 
     .stat-value {
-        font-size: 1.4rem;
+        font-size: 1.6rem;
         font-weight: 700;
-        color: #ffffff;
+        color: #22c55e;
+        margin-top: 4px;
     }
 
-    /* Text input ko white label + white box */
+    /* Text input label + box white */
     .stTextInput > label {
         color: #ffffff !important;
     }
@@ -118,12 +125,14 @@ st.markdown(
         color: #0b1120;
         font-weight: 700;
         border: none;
-        padding: 0.6rem 1rem;
+        padding: 0.7rem 1rem;
         box-shadow: 0 10px 24px rgba(22, 163, 74, 0.55);
+        transition: all 0.3s ease;
     }
     .stButton>button:hover {
         background: linear-gradient(90deg, #4ade80, #22c55e);
         box-shadow: 0 18px 36px rgba(34, 197, 94, 0.7);
+        transform: translateY(-2px);
     }
 
     /* Dataframe container */
@@ -131,6 +140,17 @@ st.markdown(
         border-radius: 14px;
         border: 1px solid rgba(148, 163, 184, 0.5);
         overflow: hidden;
+    }
+
+    /* Success message */
+    .success-badge {
+        background: rgba(34, 197, 94, 0.15);
+        color: #22c55e;
+        padding: 12px 16px;
+        border-radius: 10px;
+        border-left: 4px solid #22c55e;
+        font-size: 0.9rem;
+        margin: 12px 0;
     }
 
     /* Info text bottom */
@@ -202,6 +222,7 @@ def pdf_to_odoo_df(pdf_file, vendor_name="SWAG TRADING CO."):
         model, desc, qty, price = parse_line(ln)
         if not model:
             continue
+        total_price = qty * price  # ek line ka total
         records.append(
             {
                 "partner_id/name": vendor_name,
@@ -209,10 +230,51 @@ def pdf_to_odoo_df(pdf_file, vendor_name="SWAG TRADING CO."):
                 "order_line/name": desc,
                 "order_line/product_uom_qty": qty,
                 "order_line/price_unit": price,
+                "order_line/price_subtotal": total_price,  # naya column
             }
         )
 
     return pd.DataFrame(records)
+
+
+def style_excel_file(buffer, df):
+    """Excel ko color-coded styling de"""
+    from openpyxl import load_workbook
+    
+    wb = load_workbook(buffer)
+    ws = wb.active
+    
+    # Header green
+    header_fill = PatternFill(start_color="22C55E", end_color="22C55E", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+    
+    # Alternating row colors
+    light_fill = PatternFill(start_color="F0F9FF", end_color="F0F9FF", fill_type="solid")
+    for row_idx, row in enumerate(ws.iter_rows(min_row=2, max_row=ws.max_row), start=2):
+        if row_idx % 2 == 0:
+            for cell in row:
+                cell.fill = light_fill
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+    
+    # Column width auto
+    for col in ws.columns:
+        max_length = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        ws.column_dimensions[col_letter].width = max_length + 2
+    
+    wb.save(buffer)
+    buffer.seek(0)
 
 
 # ---------- Layout ----------
@@ -282,7 +344,7 @@ with right:
             f"""
                 <div class="stat-value">Ready to convert</div>
                 <div style="font-size:0.8rem;color:#9ca3af;margin-top:4px;">
-                    File: <span style="color:#e5e7eb;">{uploaded_pdf.name}</span>
+                    File: <span style="color:#22c55e;">{uploaded_pdf.name}</span>
                 </div>
             </div>
         """,
@@ -295,54 +357,97 @@ with right:
 # ---------- Processing & Output ----------
 
 if uploaded_pdf is not None and convert_clicked:
-    with st.spinner("PDF se item lines read ho rahi hain..."):
+    with st.spinner("📄 PDF parse ho rahi hai..."):
         df_odoo = pdf_to_odoo_df(uploaded_pdf, vendor_name)
 
     if df_odoo is None or df_odoo.empty:
         st.error(
-            "Koi item line detect nahi hui. Invoice format ya parser ko thoda adjust karna padega."
+            "❌ Koi item line detect nahi hui. Invoice format check karein."
         )
     else:
         total_items = len(df_odoo)
-        total_amount = float(df_odoo["order_line/price_unit"].sum())
+        total_qty = float(df_odoo["order_line/product_uom_qty"].sum())
+        total_unit_sum = float(df_odoo["order_line/price_unit"].sum())
+        total_subtotal = float(df_odoo["order_line/price_subtotal"].sum())  # qty × price
+        
+        # Conversion efficiency (kitna data extract hua)
+        efficiency = (total_items / max(total_items, 1)) * 100
 
-        c1, c2 = st.columns(2)
+        st.markdown(
+            f"""
+            <div class="success-badge">
+                ✅ <strong>{total_items} items successfully extracted</strong> from PDF
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # Stats 3 columns
+        c1, c2, c3, c4 = st.columns(4)
+        
         with c1:
             st.markdown(
                 f"""
                 <div class="stat-card">
-                    <div class="stat-label">Total items</div>
+                    <div class="stat-label">📦 Total Items</div>
                     <div class="stat-value">{total_items}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+        
         with c2:
             st.markdown(
                 f"""
                 <div class="stat-card">
-                    <div class="stat-label">Total unit price sum</div>
-                    <div class="stat-value">SR {total_amount:,.2f}</div>
+                    <div class="stat-label">📊 Total Quantity</div>
+                    <div class="stat-value">{total_qty:.0f}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        
+        with c3:
+            st.markdown(
+                f"""
+                <div class="stat-card">
+                    <div class="stat-label">💰 Unit Price Sum</div>
+                    <div class="stat-value">SR {total_unit_sum:,.0f}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        
+        with c4:
+            st.markdown(
+                f"""
+                <div class="stat-card">
+                    <div class="stat-label">✨ Total Amount (Qty × Price)</div>
+                    <div class="stat-value">SR {total_subtotal:,.0f}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-        st.markdown("### Preview (Odoo import lines)")
+        st.divider()
+
+        st.markdown("### 📋 Preview (Odoo import ready)")
 
         st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
         st.dataframe(df_odoo, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
+        # Excel file with styling
         buffer = BytesIO()
         with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-            df_odoo.to_excel(writer, index=False, sheet_name="Lines")
-        buffer.seek(0)
+            df_odoo.to_excel(writer, index=False, sheet_name="Purchase Orders")
+        
+        style_excel_file(buffer, df_odoo)
 
         st.download_button(
-            label="⬇️ Download Odoo Excel",
+            label="⬇️ Download Styled Excel (Ready for Odoo Import)",
             data=buffer,
-            file_name="odoo_purchase_lines.xlsx",
+            file_name="odoo_purchase_orders.xlsx",
             mime=(
                 "application/vnd.openxmlformats-officedocument."
                 "spreadsheetml.sheet"
@@ -351,10 +456,13 @@ if uploaded_pdf is not None and convert_clicked:
 
         st.markdown(
             """
-           
+            <div class="footer-note">
+                💡 <strong>Pro Tip:</strong> Excel file automatically color-coded aur formatted hai, 
+                bilkul Odoo import ke liye ready!
+            </div>
             """,
             unsafe_allow_html=True,
         )
-elif uploaded_pdf is None:
-    st.info("Upar se PDF select karo start karne ke liye.")
 
+elif uploaded_pdf is None:
+    st.info("📂 Upar se PDF select karo start karne ke liye.")
