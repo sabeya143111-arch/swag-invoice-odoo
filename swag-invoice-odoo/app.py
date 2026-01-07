@@ -7,11 +7,15 @@ from io import BytesIO
 # ---------- Page Config & Theme ----------
 st.set_page_config(layout="wide")
 
-# ========== Logo Display ==========
+# ========== Logo Display (gap kam) ==========
 st.image(
     "https://raw.githubusercontent.com/sabeya143111-arch/swag-invoice-odoo/main/swag-invoice-odoo/logo.png",
-    use_column_width=True,
+    use_column_width=False,
+    width=520,   # chhota / bada chahiye to yahan number change karo
 )
+
+# chhota spacer only 12px
+st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 
 # ---------- Custom CSS for better UI ----------
 st.markdown(
@@ -21,6 +25,11 @@ st.markdown(
     .stApp {
         background: radial-gradient(circle at top left, #0f172a 0, #020617 45%, #000000 100%);
         color: #e5e7eb;
+    }
+
+    /* Top padding kam karein */
+    .block-container {
+        padding-top: 0.5rem;
     }
 
     /* Main title */
@@ -144,27 +153,27 @@ def extract_item_lines_from_text(text: str):
         sr_amounts = re.findall(r"SR\s*([\d,]+\.\d+)", ln)
         if len(sr_amounts) < 1:
             continue
-        if re.search(r"[A-Za-z0-9\\-]+\\s+\\d+$", ln):
+        if re.search(r"[A-Za-z0-9\-]+\s+\d+$", ln):
             item_lines.append(ln)
 
     return item_lines
 
 
 def parse_line(ln: str):
-    sr_amounts = re.findall(r"SR\\s*([\\d,]+\\.\\d+)", ln)
+    sr_amounts = re.findall(r"SR\s*([\d,]+\.\d+)", ln)
     unit_price = float(sr_amounts[-1].replace(",", "")) if sr_amounts else 0.0
 
-    after_last_sr = re.split(r"SR\\s*[\\d,]+\\.\\d+", ln)[-1].strip()
+    after_last_sr = re.split(r"SR\s*[\d,]+\.\d+", ln)[-1].strip()
 
-    qty_match = re.search(r"(\\d+)", after_last_sr)
+    qty_match = re.search(r"(\d+)", after_last_sr)
     qty = float(qty_match.group(1)) if qty_match else 0.0
 
-    model_line_match = re.search(r"([A-Za-z0-9\\-]+)\\s+(\\d+)$", after_last_sr)
+    model_line_match = re.search(r"([A-Za-z0-9\-]+)\s+(\d+)$", after_last_sr)
     model = model_line_match.group(1) if model_line_match else ""
 
     tmp = after_last_sr
     if qty_match:
-        tmp = re.sub(rf"^{qty_match.group(1)}\\s*", "", tmp)
+        tmp = re.sub(rf"^{qty_match.group(1)}\s*", "", tmp)
     if model_line_match:
         tmp = tmp.replace(model_line_match.group(0), "")
     desc = " ".join(tmp.split())
@@ -176,7 +185,7 @@ def pdf_to_odoo_df(pdf_file, vendor_name="SWAG TRADING CO."):
     with pdfplumber.open(pdf_file) as pdf:
         full_text = ""
         for page in pdf.pages:
-            full_text += (page.extract_text() or "") + "\\n"
+            full_text += (page.extract_text() or "") + "\n"
 
     item_lines = extract_item_lines_from_text(full_text)
 
