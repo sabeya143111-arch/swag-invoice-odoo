@@ -14,8 +14,12 @@ from openpyxl.utils import get_column_letter
 
 st.set_page_config(layout="wide")
 
-# HF token - directly set
-HF_TOKEN = "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"
+# HF token from environment / secrets
+HF_TOKEN = os.getenv("HF_TOKEN") or st.secrets.get("HF_TOKEN")
+
+if not HF_TOKEN:
+    st.error("⚠️ HF_TOKEN not found. Please set it in environment variables or Streamlit secrets.")
+    st.stop()
 
 client = OpenAI(
     base_url="https://router.huggingface.co/v1",
@@ -83,10 +87,9 @@ st.markdown("---")
 # ---------- HELPER FUNCTIONS ----------
 
 def parse_ai_json(text: str):
-    """Extract JSON from AI response (handle markdown code fences)."""
     text = text.strip()
     if "```json" in text:
-        text = text.split("```json")[1].split("```")[0]
+        text = text.split("```json").split("```")[1]
     elif "```" in text:
         text = text.split("```")[1].split("```")[0]
     text = re.sub(r"```(json)?\s*", "", text)
@@ -94,7 +97,6 @@ def parse_ai_json(text: str):
     return json.loads(text.strip())
 
 def extract_pdf_text(file):
-    """Extract all text from PDF pages using pdfplumber."""
     text = ""
     with pdfplumber.open(file) as pdf:
         for page in pdf.pages:
@@ -104,30 +106,32 @@ def extract_pdf_text(file):
     return text
 
 def call_llm_once_with_cache(user_prompt: str, system_prompt: str) -> str:
-    """Call the LLM once (with session cache)."""
     cache_key = (user_prompt, system_prompt)
     if cache_key in st.session_state["ai_cache"]:
         return st.session_state["ai_cache"][cache_key]
 
-    messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
 
     resp = client.chat.completions.create(
         model="meta-llama/Llama-3.3-70B-Instruct",
         messages=messages,
         max_tokens=4000,
-        temperature=0.0
+        temperature=0.0,
     )
     answer = resp.choices[0].message.content
     st.session_state["ai_cache"][cache_key] = answer
     return answer
 
 def extract_invoice_data_ai(pdf_text: str) -> dict:
-    """Use AI to extract structured invoice data from raw PDF text."""
     system_prompt = (
         "You are a highly accurate data extraction assistant. "
         "Extract invoice details as valid JSON only. "
         "No extra text or explanations. "
-        "Return a JSON object with: invoice_number, invoice_date, total_amount, vat_amount, vendor_name, line_items. "
+        "Return a JSON object with: invoice_number, invoice_date, total_amount, "
+        "vat_amount, vendor_name, line_items. "
         "line_items should be a list of objects with: description, quantity, unit_price, total."
     )
     user_prompt = (
@@ -141,7 +145,6 @@ def extract_invoice_data_ai(pdf_text: str) -> dict:
     return parse_ai_json(raw_resp)
 
 def show_json_preview(data: dict):
-    """Display structured invoice data in a styled preview."""
     with st.container():
         st.markdown("<div class='invoice-preview'>", unsafe_allow_html=True)
         st.markdown("### 🧾 Extracted Invoice Data")
@@ -161,7 +164,6 @@ def show_json_preview(data: dict):
         st.markdown("</div>", unsafe_allow_html=True)
 
 def convert_to_odoo_excel(data: dict) -> BytesIO:
-    """Convert structured invoice data into Odoo-compatible Excel."""
     records = []
     for item in data.get("line_items", []):
         records.append({
@@ -173,7 +175,7 @@ def convert_to_odoo_excel(data: dict) -> BytesIO:
             "Unit Price": item.get("unit_price", 0.0),
             "Line Total": item.get("total", 0.0),
             "VAT": data.get("vat_amount", 0.0),
-            "Total Amount": data.get("total_amount", 0.0)
+            "Total Amount": data.get("total_amount", 0.0),
         })
 
     df = pd.DataFrame(records)
@@ -185,7 +187,6 @@ def convert_to_odoo_excel(data: dict) -> BytesIO:
         workbook = writer.book
         worksheet = writer.sheets["Odoo Import"]
 
-        # Header styling
         header_fill = PatternFill(start_color="22c55e", end_color="22c55e", fill_type="solid")
         header_font = Font(bold=True, color="FFFFFF", size=11)
         for cell in worksheet[1]:
@@ -193,7 +194,6 @@ def convert_to_odoo_excel(data: dict) -> BytesIO:
             cell.font = header_font
             cell.alignment = Alignment(horizontal="center", vertical="center")
 
-        # Auto-adjust column widths
         for col in worksheet.columns:
             max_length = 0
             col_letter = get_column_letter(col[0].column)
@@ -243,7 +243,7 @@ if uploaded_file:
             data=excel_file,
             file_name=f"odoo_invoice_{invoice_data.get('invoice_number', 'export')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
+            use_container_width=True,
         )
         st.balloons()
     st.markdown("</div>", unsafe_allow_html=True)
