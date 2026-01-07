@@ -6,6 +6,11 @@ from io import BytesIO
 
 # ---------- Page Config & Theme ----------
 
+
+# ========== Logo Display ==========
+st.image("WhatsApp Image 2025-12-28 at 12.21.23.jpeg", width=250)
+st.markdown("---")
+
 st.set_page_config(
     page_title="SWAG Invoice → Odoo",
     page_icon="🧾",
@@ -343,3 +348,4 @@ if uploaded_pdf is not None and convert_clicked:
         )
 elif uploaded_pdf is None:
     st.info("Upar se PDF select karo start karne ke liye.")
+
