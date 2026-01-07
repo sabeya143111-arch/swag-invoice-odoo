@@ -19,7 +19,7 @@ with logo_col2:
     st.image(
         "https://raw.githubusercontent.com/sabeya143111-arch/swag-invoice-odoo/main/swag-invoice-odoo/logo.png",
         use_column_width=False,
-        width=420,  # yahan se logo ka size control kar sakte ho
+        width=420,
     )
 
 # ---------- Custom CSS ----------
@@ -31,7 +31,6 @@ st.markdown(
         color: #e5e7eb;
     }
 
-    /* Top/bottom padding bilkul kam */
     .block-container {
         padding-top: 0rem;
         padding-bottom: 0rem;
@@ -158,32 +157,58 @@ st.markdown(
 
 # ---------- Helpers ----------
 
-def extract_item_lines_from_text(text: str):
-    lines = []
-    for ln in text.split("\n"):
-        ln = " ".join(ln.split())
-        if ln:
-            lines.append(ln)
+def detect_pdf_structure(text: str):
+    """
+    PDF ka structure detect kare - columns identify kare.
+    Returns: {columns detected, sample rows}
+    """
+    lines = [" ".join(ln.split()) for ln in text.split("\n") if ln.strip()]
+    
+    # Common column patterns detect kare
+    structure = {
+        "has_sr": any("SR" in ln for ln in lines[:50]),
+        "has_model": any(re.search(r"[A-Z]{2,}\-\d+", ln) for ln in lines[:50]),
+        "has_qty": any(re.search(r"\bQty\b|\bQuantity\b|\bQTY\b", ln, re.I) for ln in lines[:50]),
+        "has_price": any(re.search(r"\bPrice\b|\bAmount\b|\bCost\b", ln, re.I) for ln in lines[:50]),
+        "total_lines": len(lines),
+    }
+    
+    return structure, lines
 
+
+def extract_item_lines_generic(text: str, structure: dict):
+    """
+    Different PDF formats handle kare based on detected structure.
+    """
+    lines = [" ".join(ln.split()) for ln in text.split("\n") if ln.strip()]
     item_lines = []
-    for ln in lines:
-        if "SR" not in ln:
-            continue
-        sr_amounts = re.findall(r"SR\s*([\d,]+\.\d+)", ln)
-        if len(sr_amounts) < 1:
-            continue
-        if re.search(r"[A-Za-z0-9\-]+\s+\d+$", ln):
-            item_lines.append(ln)
-
+    
+    if structure["has_sr"]:
+        # SR-based format (original SWAG format)
+        for ln in lines:
+            if "SR" in ln:
+                sr_amounts = re.findall(r"SR\s*([\d,]+\.\d+)", ln)
+                if len(sr_amounts) >= 1:
+                    if re.search(r"[A-Za-z0-9\-]+\s+\d+$", ln):
+                        item_lines.append(("sr_format", ln))
+    else:
+        # Alternative format - tab/space separated values
+        for ln in lines:
+            # Simple check: agar numeric values aur text dono hain
+            if re.search(r"\d+", ln) and any(c.isalpha() for c in ln):
+                # Skip headers
+                if not re.search(r"(total|subtotal|invoice|date)", ln, re.I):
+                    item_lines.append(("generic_format", ln))
+    
     return item_lines
 
 
-def parse_line(ln: str):
+def parse_line_sr_format(ln: str):
+    """Original SR-based parsing."""
     sr_amounts = re.findall(r"SR\s*([\d,]+\.\d+)", ln)
     unit_price = float(sr_amounts[-1].replace(",", "")) if sr_amounts else 0.0
 
     after_last_sr = re.split(r"SR\s*[\d,]+\.\d+", ln)[-1].strip()
-
     qty_match = re.search(r"(\d+)", after_last_sr)
     qty = float(qty_match.group(1)) if qty_match else 0.0
 
@@ -200,22 +225,56 @@ def parse_line(ln: str):
     return model.strip(), desc.strip(), qty, unit_price
 
 
+def parse_line_generic(ln: str):
+    """Generic format ke liye parsing - flexible approach."""
+    # Numbers extract kare
+    numbers = re.findall(r"[\d,]+\.?\d*", ln)
+    
+    # Model number (usually format: ABC-123)
+    model_match = re.search(r"([A-Z]{2,}\-?\d+)", ln)
+    model = model_match.group(1) if model_match else ""
+    
+    # Description (sabkuch jo number aur model nahi hai)
+    desc = re.sub(r"[A-Z]{2,}\-?\d+", "", ln).strip()
+    desc = re.sub(r"[\d,]+\.?\d*", "", desc).strip()
+    desc = " ".join(desc.split())
+    
+    # Qty aur price last 2 numbers se assume karo
+    qty = float(numbers[-2].replace(",", "")) if len(numbers) >= 2 else 0.0
+    unit_price = float(numbers[-1].replace(",", "")) if len(numbers) >= 1 else 0.0
+    
+    return model, desc, qty, unit_price
+
+
 def pdf_to_odoo_df(pdf_file, vendor_name="SWAG TRADING CO.", discount_pct=0.0, vat_pct=0.0):
+    """
+    Dynamic PDF parsing - auto-detect structure aur parse accordingly.
+    """
     with pdfplumber.open(pdf_file) as pdf:
         full_text = ""
         for page in pdf.pages:
             full_text += (page.extract_text() or "") + "\n"
 
-    item_lines = extract_item_lines_from_text(full_text)
+    # Step 1: Detect structure
+    structure, lines = detect_pdf_structure(full_text)
+    
+    # Step 2: Extract item lines based on detected structure
+    item_lines = extract_item_lines_generic(full_text, structure)
 
+    # Step 3: Parse lines based on format
     records = []
     discount_factor = 1 - (discount_pct / 100)
     vat_factor = 1 + (vat_pct / 100)
 
-    for ln in item_lines:
-        model, desc, qty, price = parse_line(ln)
+    for fmt, ln in item_lines:
+        if fmt == "sr_format":
+            model, desc, qty, price = parse_line_sr_format(ln)
+        else:
+            model, desc, qty, price = parse_line_generic(ln)
+        
         if not model:
             continue
+            
         line_base = qty * price
         line_total = line_base * discount_factor * vat_factor
         records.append(
@@ -230,10 +289,11 @@ def pdf_to_odoo_df(pdf_file, vendor_name="SWAG TRADING CO.", discount_pct=0.0, v
         )
 
     df = pd.DataFrame(records)
-    return df, full_text, item_lines
+    return df, full_text, item_lines, structure
 
 
 def style_excel_file(buffer):
+    """Excel ko style karo - professional look."""
     from openpyxl import load_workbook
 
     wb = load_workbook(buffer)
@@ -285,8 +345,9 @@ with left:
                 SWAG Invoice → Odoo Excel
             </div>
             <p class="sub-text">
-                PDF invoice upload karo, app automatically clean Excel bana dega
-                jo direct Odoo import me use ho sakta hai. Manual typing khatam.
+                Kisi bhi PDF invoice upload karo, app automatically structure detect karke 
+                clean Excel bana dega jo direct Odoo import me use ho sakta hai. 
+                <br><strong>✨ Multiple PDF formats support karte hain!</strong>
             </p>
         </div>
         """,
@@ -297,13 +358,13 @@ with left:
     vendor_name = st.text_input(
         "Vendor / Partner name",
         value="SWAG TRADING CO.",
-        help="Yahan Odoo ka vendor / partner name likho.",
+        help="Odoo ka vendor / partner name likho.",
     )
 
     uploaded_pdf = st.file_uploader(
-        "Invoice PDF upload karein",
+        "Invoice PDF upload karein (kisi bhi format)",
         type=["pdf"],
-        help="SWAG supplier invoice (PDF) yahan se choose karein.",
+        help="SWAG ya kisi aur supplier ka invoice (PDF).",
     )
 
     with st.expander("⚙️ Advanced settings", expanded=False):
@@ -353,22 +414,23 @@ tab_overview, tab_details, tab_debug = st.tabs(["📊 Overview", "📋 Details +
 df_odoo = None
 full_text = ""
 item_lines = []
+detected_structure = None
 
 # ---------- Processing ----------
 if uploaded_pdf is not None and convert_clicked:
-    progress = st.progress(0, text="Step 1/3: PDF read ho raha hai...")  # [web:72]
+    progress = st.progress(0, text="Step 1/4: PDF read ho raha hai...")
 
-    with st.spinner("📄 PDF parse ho rahi hai..."):
-        progress.progress(30, text="Step 2/3: Lines extract ho rahi hain...")
-        df_odoo, full_text, item_lines = pdf_to_odoo_df(
+    with st.spinner("📄 PDF parse aur structure detect ho rahi hai..."):
+        progress.progress(25, text="Step 2/4: PDF structure detect ho raha hai...")
+        df_odoo, full_text, item_lines, detected_structure = pdf_to_odoo_df(
             uploaded_pdf, vendor_name, discount_pct, vat_pct
         )
-        progress.progress(70, text="Step 3/3: Excel build ho raha hai...")
+        progress.progress(60, text="Step 3/4: Data clean ho rahi hai...")
 
     if df_odoo is None or df_odoo.empty:
         progress.empty()
         st.error(
-            "❌ Koi item line detect nahi hui. Invoice format check karein."
+            "❌ Koi item line detect nahi hui. PDF format ya structure check karein."
         )
     else:
         total_items = len(df_odoo)
@@ -376,7 +438,7 @@ if uploaded_pdf is not None and convert_clicked:
         total_subtotal = float(df_odoo["order_line/price_subtotal"].sum())
         total_unit_sum = float(df_odoo["order_line/price_unit"].sum())
 
-        progress.progress(100, text="Ho gaya! ✅")
+        progress.progress(100, text="✅ Ho gaya!")
         progress.empty()
 
         # history update
@@ -393,10 +455,11 @@ if uploaded_pdf is not None and convert_clicked:
 
         # ===== Overview tab =====
         with tab_overview:
+            format_detected = "SR-based format (SWAG original)" if detected_structure.get("has_sr") else "Generic flexible format"
             st.markdown(
                 f"""
                 <div class="success-badge">
-                    ✅ <strong>{total_items} items successfully extracted</strong> from PDF
+                    ✅ <strong>{total_items} items successfully extracted</strong> ({format_detected})
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -451,7 +514,7 @@ if uploaded_pdf is not None and convert_clicked:
                 st.markdown(
                     f"""
                     <div class="stat-card">
-                        <div class="stat-label">✨ Total Amount (after discount & VAT)</div>
+                        <div class="stat-label">✨ Total Amount</div>
                         <div class="stat-value">SR {total_subtotal:,.0f}</div>
                     </div>
                     """,
@@ -535,8 +598,8 @@ if uploaded_pdf is not None and convert_clicked:
             st.markdown(
                 """
                 <div class="footer-note">
-                    💡 Pro Tip: Excel file automatically color-coded aur formatted hai, 
-                    bilkul Odoo import ke liye ready!
+                    💡 App automatically detect karta hai ki PDF ka format kya hai 
+                    aur usi hisaab se data extract karta hai!
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -544,12 +607,17 @@ if uploaded_pdf is not None and convert_clicked:
 
         # ===== Debug tab =====
         with tab_debug:
-            st.markdown("#### Raw text (first 3000 chars)")
-            st.code(full_text[:3000])
+            st.markdown("### 🔍 Detected PDF Structure")
+            st.json(detected_structure)
+            
+            st.markdown("#### Raw text (first 2500 chars)")
+            st.code(full_text[:2500])
 
             st.markdown("#### Detected item lines")
-            st.write(item_lines)
+            st.write(f"Total lines detected: {len(item_lines)}")
+            for fmt, ln in item_lines[:10]:
+                st.caption(f"[{fmt}] {ln}")
 
 elif uploaded_pdf is None:
     with tab_overview:
-        st.info("📂 Upar se PDF select karo start karne ke liye.")
+        st.info("📂 Upar se PDF select karo. Ye app kisi bhi format ka PDF handle kar sakta hai!")
