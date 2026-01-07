@@ -9,6 +9,10 @@ from openpyxl.utils import get_column_letter
 # ---------- Page Config & Theme ----------
 st.set_page_config(layout="wide")
 
+# Session history init
+if "history" not in st.session_state:
+    st.session_state["history"] = []
+
 # ========== Logo Display (center) ==========
 logo_col1, logo_col2, logo_col3 = st.columns([1, 2, 1])
 with logo_col2:
@@ -17,7 +21,7 @@ with logo_col2:
         use_column_width=True,
     )
 
-# ---------- Custom CSS for better UI ----------
+# ---------- Custom CSS ----------
 st.markdown(
     """
     <style>
@@ -25,10 +29,7 @@ st.markdown(
         background: radial-gradient(circle at top left, #0f172a 0, #020617 45%, #000000 100%);
         color: #e5e7eb;
     }
-
-    .block-container {
-        padding-top: 0.3rem;
-    }
+    .block-container { padding-top: 0.3rem; }
 
     .main-title {
         font-size: 2.6rem;
@@ -38,11 +39,7 @@ st.markdown(
         color: transparent;
         letter-spacing: 0.04em;
     }
-
-    .sub-text {
-        font-size: 0.98rem;
-        color: #ffffff;
-    }
+    .sub-text { font-size: 0.98rem; color: #ffffff; }
 
     .glass-card {
         background: rgba(15, 23, 42, 0.92);
@@ -52,7 +49,6 @@ st.markdown(
         box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
         backdrop-filter: blur(18px);
     }
-
     .pill-badge {
         display: inline-flex;
         align-items: center;
@@ -72,19 +68,16 @@ st.markdown(
         border: 1px solid rgba(55, 65, 81, 0.8);
         transition: all 0.3s ease;
     }
-
     .stat-card:hover {
         border-color: rgba(52, 211, 153, 0.6);
         box-shadow: 0 8px 16px rgba(52, 211, 153, 0.2);
     }
-
     .stat-label {
         font-size: 0.7rem;
         text-transform: uppercase;
         color: #9ca3af;
         letter-spacing: 0.08em;
     }
-
     .stat-value {
         font-size: 1.6rem;
         font-weight: 700;
@@ -92,17 +85,12 @@ st.markdown(
         margin-top: 4px;
     }
 
-    .stTextInput > label {
-        color: #ffffff !important;
-    }
+    .stTextInput > label { color: #ffffff !important; }
     .stTextInput > div > div > input {
         background-color: #ffffff;
         color: #000000;
     }
-
-    [data-testid="stFileUploader"] label {
-        color: #ffffff !important;
-    }
+    [data-testid="stFileUploader"] label { color: #ffffff !important; }
 
     .uploadedFile {
         border-radius: 12px !important;
@@ -142,7 +130,6 @@ st.markdown(
         font-size: 0.9rem;
         margin: 12px 0;
     }
-
     .warning-badge {
         background: rgba(248, 171, 89, 0.10);
         color: #fdba74;
@@ -152,7 +139,6 @@ st.markdown(
         font-size: 0.85rem;
         margin: 8px 0;
     }
-
     .footer-note {
         font-size: 0.78rem;
         color: #6b7280;
@@ -208,7 +194,7 @@ def parse_line(ln: str):
     return model.strip(), desc.strip(), qty, unit_price
 
 
-def pdf_to_odoo_df(pdf_file, vendor_name="SWAG TRADING CO."):
+def pdf_to_odoo_df(pdf_file, vendor_name="SWAG TRADING CO.", discount_pct=0.0, vat_pct=0.0):
     with pdfplumber.open(pdf_file) as pdf:
         full_text = ""
         for page in pdf.pages:
@@ -217,11 +203,15 @@ def pdf_to_odoo_df(pdf_file, vendor_name="SWAG TRADING CO."):
     item_lines = extract_item_lines_from_text(full_text)
 
     records = []
+    discount_factor = 1 - (discount_pct / 100)
+    vat_factor = 1 + (vat_pct / 100)
+
     for ln in item_lines:
         model, desc, qty, price = parse_line(ln)
         if not model:
             continue
-        total_price = qty * price
+        line_base = qty * price
+        line_total = line_base * discount_factor * vat_factor
         records.append(
             {
                 "partner_id/name": vendor_name,
@@ -229,14 +219,15 @@ def pdf_to_odoo_df(pdf_file, vendor_name="SWAG TRADING CO."):
                 "order_line/name": desc,
                 "order_line/product_uom_qty": qty,
                 "order_line/price_unit": price,
-                "order_line/price_subtotal": total_price,
+                "order_line/price_subtotal": line_total,
             }
         )
 
-    return pd.DataFrame(records)
+    df = pd.DataFrame(records)
+    return df, full_text, item_lines
 
 
-def style_excel_file(buffer, df):
+def style_excel_file(buffer):
     from openpyxl import load_workbook
 
     wb = load_workbook(buffer)
@@ -271,7 +262,7 @@ def style_excel_file(buffer, df):
     wb.save(buffer)
     buffer.seek(0)
 
-# ---------- Layout ----------
+# ---------- Layout: left/right top ----------
 
 left, right = st.columns([1.3, 1])
 
@@ -309,6 +300,10 @@ with left:
         help="SWAG supplier invoice (PDF) yahan se choose karein.",
     )
 
+    with st.expander("⚙️ Advanced settings", expanded=False):
+        discount_pct = st.number_input("Global discount %", 0.0, 100.0, 0.0, 0.5)
+        vat_pct = st.number_input("VAT %", 0.0, 30.0, 0.0, 0.5)
+
     convert_clicked = st.button("🔁 Convert to Odoo Excel")
 
 with right:
@@ -332,7 +327,6 @@ with right:
         """,
             unsafe_allow_html=True,
         )
-        df_odoo = None
     else:
         st.markdown(
             f"""
@@ -344,163 +338,195 @@ with right:
         """,
             unsafe_allow_html=True,
         )
-        df_odoo = None
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------- Processing & Output ----------
+# ---------- Tabs ----------
+tab_overview, tab_details, tab_debug = st.tabs(["📊 Overview", "📋 Details", "🛠 Debug"])
 
+df_odoo = None
+full_text = ""
+item_lines = []
+
+# ---------- Processing ----------
 if uploaded_pdf is not None and convert_clicked:
+    progress = st.progress(0, text="Step 1/3: PDF read ho raha hai...")  # [web:72]
+
     with st.spinner("📄 PDF parse ho rahi hai..."):
-        df_odoo = pdf_to_odoo_df(uploaded_pdf, vendor_name)
+        progress.progress(30, text="Step 2/3: Lines extract ho rahi hain...")
+        df_odoo, full_text, item_lines = pdf_to_odoo_df(
+            uploaded_pdf, vendor_name, discount_pct, vat_pct
+        )
+        progress.progress(70, text="Step 3/3: Excel build ho raha hai...")
 
     if df_odoo is None or df_odoo.empty:
+        progress.empty()
         st.error(
             "❌ Koi item line detect nahi hui. Invoice format check karein."
         )
     else:
         total_items = len(df_odoo)
         total_qty = float(df_odoo["order_line/product_uom_qty"].sum())
-        total_unit_sum = float(df_odoo["order_line/price_unit"].sum())
         total_subtotal = float(df_odoo["order_line/price_subtotal"].sum())
+        total_unit_sum = float(df_odoo["order_line/price_unit"].sum())
 
-        st.markdown(
-            f"""
-            <div class="success-badge">
-                ✅ <strong>{total_items} items successfully extracted</strong> from PDF
-            </div>
-            """,
-            unsafe_allow_html=True,
+        progress.progress(100, text="Ho gaya! ✅")
+        progress.empty()
+
+        # history update
+        st.session_state["history"].insert(
+            0,
+            {
+                "File": uploaded_pdf.name,
+                "Items": int(total_items),
+                "Qty": int(total_qty),
+                "Amount": round(total_subtotal, 2),
+            },
         )
+        st.session_state["history"] = st.session_state["history"][:5]
 
-        # Duplicate models warning
-        dupes = df_odoo["order_line/product_id"].value_counts()
-        dupe_models = dupes[dupes > 1]
-        if not dupe_models.empty:
-            ex_models = ", ".join(dupe_models.index.tolist()[:3])
+        # ===== Overview tab =====
+        with tab_overview:
             st.markdown(
                 f"""
-                <div class="warning-badge">
-                    ⚠️ {len(dupe_models)} models repeated in invoice. 
-                    Example: {ex_models}
+                <div class="success-badge">
+                    ✅ <strong>{total_items} items successfully extracted</strong> from PDF
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-        c1, c2, c3, c4 = st.columns(4)
+            dupes = df_odoo["order_line/product_id"].value_counts()
+            dupe_models = dupes[dupes > 1]
+            if not dupe_models.empty:
+                ex_models = ", ".join(dupe_models.index.tolist()[:3])
+                st.markdown(
+                    f"""
+                    <div class="warning-badge">
+                        ⚠️ {len(dupe_models)} models repeated in invoice. 
+                        Example: {ex_models}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
-        with c1:
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                st.markdown(
+                    f"""
+                    <div class="stat-card">
+                        <div class="stat-label">📦 Total Items</div>
+                        <div class="stat-value">{total_items}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            with c2:
+                st.markdown(
+                    f"""
+                    <div class="stat-card">
+                        <div class="stat-label">📊 Total Quantity</div>
+                        <div class="stat-value">{total_qty:.0f}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            with c3:
+                st.markdown(
+                    f"""
+                    <div class="stat-card">
+                        <div class="stat-label">💰 Unit Price Sum</div>
+                        <div class="stat-value">SR {total_unit_sum:,.0f}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            with c4:
+                st.markdown(
+                    f"""
+                    <div class="stat-card">
+                        <div class="stat-label">✨ Total Amount (after discount & VAT)</div>
+                        <div class="stat-value">SR {total_subtotal:,.0f}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
             st.markdown(
                 f"""
-                <div class="stat-card">
-                    <div class="stat-label">📦 Total Items</div>
-                    <div class="stat-value">{total_items}</div>
+                <p style="font-size:0.9rem;color:#9ca3af;margin-top:8px;">
+                    Vendor <b>{vendor_name}</b> • Discount <b>{discount_pct:.1f}%</b> • VAT <b>{vat_pct:.1f}%</b>
+                </p>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            if st.session_state["history"]:
+                st.markdown("### 🕒 Recent conversions")
+                st.table(st.session_state["history"])
+
+        # ===== Details tab =====
+        with tab_details:
+            st.markdown("### 🔍 Filters")
+            f1, f2 = st.columns(2)
+            with f1:
+                min_qty = st.number_input(
+                    "Minimum quantity", min_value=0.0, value=0.0, step=1.0
+                )
+            with f2:
+                min_amount = st.number_input(
+                    "Minimum line amount (SR)", min_value=0.0, value=0.0, step=10.0
+                )
+
+            filtered_df = df_odoo[
+                (df_odoo["order_line/product_uom_qty"] >= min_qty)
+                & (df_odoo["order_line/price_subtotal"] >= min_amount)
+            ]
+
+            st.markdown("### 📋 Preview (Filtered lines)")
+            st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
+            st.dataframe(filtered_df, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            top5 = df_odoo.sort_values(
+                "order_line/price_subtotal", ascending=False
+            ).head(5)
+            st.markdown("#### 🔝 Top 5 high value lines")
+            st.dataframe(top5, use_container_width=True, height=250)
+
+            buffer = BytesIO()
+            with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+                df_odoo.to_excel(writer, index=False, sheet_name="Purchase Orders")
+            style_excel_file(buffer)
+
+            st.download_button(
+                label="⬇️ Download Styled Excel (Ready for Odoo Import)",
+                data=buffer,
+                file_name="odoo_purchase_orders.xlsx",
+                mime=(
+                    "application/vnd.openxmlformats-officedocument."
+                    "spreadsheetml.sheet"
+                ),
+            )
+
+            st.markdown(
+                """
+                <div class="footer-note">
+                    💡 Pro Tip: Excel file automatically color-coded aur formatted hai, 
+                    bilkul Odoo import ke liye ready!
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-        with c2:
-            st.markdown(
-                f"""
-                <div class="stat-card">
-                    <div class="stat-label">📊 Total Quantity</div>
-                    <div class="stat-value">{total_qty:.0f}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+        # ===== Debug tab =====
+        with tab_debug:
+            st.markdown("#### Raw text (first 3000 chars)")
+            st.code(full_text[:3000])
 
-        with c3:
-            st.markdown(
-                f"""
-                <div class="stat-card">
-                    <div class="stat-label">💰 Unit Price Sum</div>
-                    <div class="stat-value">SR {total_unit_sum:,.0f}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        with c4:
-            st.markdown(
-                f"""
-                <div class="stat-card">
-                    <div class="stat-label">✨ Total Amount (Qty × Price)</div>
-                    <div class="stat-value">SR {total_subtotal:,.0f}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        st.divider()
-
-        # Filters
-        st.markdown("### 🔍 Filters")
-        f1, f2 = st.columns(2)
-        with f1:
-            min_qty = st.number_input(
-                "Minimum quantity", min_value=0.0, value=0.0, step=1.0
-            )
-        with f2:
-            min_amount = st.number_input(
-                "Minimum line amount (SR)", min_value=0.0, value=0.0, step=10.0
-            )
-
-        filtered_df = df_odoo[
-            (df_odoo["order_line/product_uom_qty"] >= min_qty)
-            & (df_odoo["order_line/price_subtotal"] >= min_amount)
-        ]
-
-        st.markdown(
-            f"""
-            <p style="font-size:0.9rem;color:#9ca3af;margin-top:8px;">
-                This file contains <b>{total_items}</b> lines for vendor 
-                <b>{vendor_name}</b> with total quantity <b>{total_qty:.0f}</b> 
-                and total amount <b>SR {total_subtotal:,.0f}</b>.
-            </p>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        st.markdown("### 📋 Preview (Filtered lines)")
-        st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
-        st.dataframe(filtered_df, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Top 5 high value items
-        top5 = df_odoo.sort_values(
-            "order_line/price_subtotal", ascending=False
-        ).head(5)
-        st.markdown("#### 🔝 Top 5 high value lines")
-        st.dataframe(top5, use_container_width=True, height=250)
-
-        # Styled Excel
-        buffer = BytesIO()
-        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-            df_odoo.to_excel(writer, index=False, sheet_name="Purchase Orders")
-        style_excel_file(buffer, df_odoo)
-
-        st.download_button(
-            label="⬇️ Download Styled Excel (Ready for Odoo Import)",
-            data=buffer,
-            file_name="odoo_purchase_orders.xlsx",
-            mime=(
-                "application/vnd.openxmlformats-officedocument."
-                "spreadsheetml.sheet"
-            ),
-        )
-
-        st.markdown(
-            """
-            <div class="footer-note">
-                💡 Pro Tip: Excel file automatically color-coded aur formatted hai, 
-                bilkul Odoo import ke liye ready!
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+            st.markdown("#### Detected item lines")
+            st.write(item_lines)
 
 elif uploaded_pdf is None:
-    st.info("📂 Upar se PDF select karo start karne ke liye.")
+    with tab_overview:
+        st.info("📂 Upar se PDF select karo start karne ke liye.")
