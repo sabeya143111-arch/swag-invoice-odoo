@@ -1,10 +1,12 @@
+import os
+import json
+import re
+from io import BytesIO
+
 import streamlit as st
 import pdfplumber
 import pandas as pd
-import re
-import json
-import requests
-from io import BytesIO
+from openai import OpenAI
 from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.utils import get_column_letter
 
@@ -12,9 +14,13 @@ from openpyxl.utils import get_column_letter
 
 st.set_page_config(layout="wide")
 
-HF_API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"  # example model
-# Streamlit Cloud / local: add in .streamlit/secrets.toml -> HF_API_TOKEN="xxx"
-HF_API_TOKEN = st.secrets.get("HF_API_TOKEN", "")
+# HF token from Streamlit secrets (safe)
+HF_TOKEN = st.secrets.get("HF_TOKEN", "")
+
+client = OpenAI(
+    base_url="https://router.huggingface.co/v1",
+    api_key=HF_TOKEN,
+)
 
 if "history" not in st.session_state:
     st.session_state["history"] = []
@@ -155,6 +161,7 @@ def extract_item_lines_generic(text: str, structure: dict):
             if re.search(r"\d+", ln) and any(c.isalpha() for c in ln):
                 if not re.search(r"(total|subtotal|invoice|date)", ln, re.I):
                     item_lines.append(("generic_format", ln))
+
     return item_lines
 
 
@@ -268,40 +275,20 @@ def style_excel_file(buffer):
     wb.save(buffer)
     buffer.seek(0)
 
-# ---------- AI HELPER ----------
+# ---------- AI HELPER (OpenAI client via HF router) ----------
 
-def call_hf_ai(prompt: str) -> str:
-    if not HF_API_TOKEN:
-        return "❌ Hugging Face API token missing. Please set HF_API_TOKEN in Streamlit secrets."
+def analyze_invoice_with_ai(df: pd.DataFrame, vendor: str, discount: float, vat: float) -> str:
+    if not HF_TOKEN:
+        return "❌ HF_TOKEN missing. Streamlit secrets me set karo."
 
-    headers = {
-        "Authorization": f"Bearer {HF_API_TOKEN}",
-        "Content-Type": "application/json",
-    }
-    payload = {"inputs": prompt, "max_new_tokens": 400}
-
-    try:
-        r = requests.post(HF_API_URL, headers=headers, data=json.dumps(payload), timeout=80)
-        r.raise_for_status()
-        data = r.json()
-        # For T5 models, output often in 'generated_text' or 'summary_text'
-        if isinstance(data, list) and "generated_text" in data[0]:
-            return data[0]["generated_text"]
-        if isinstance(data, list) and "summary_text" in data[0]:
-            return data[0]["summary_text"]
-        return str(data)
-    except Exception as e:
-        return f"❌ AI request failed: {e}"
-
-def build_invoice_prompt(df: pd.DataFrame, vendor: str, discount: float, vat: float) -> str:
     sample = df.head(60).to_dict(orient="records")
-    return f"""
+
+    prompt = f"""
 You are a purchase & inventory analyst for a fashion retail company in Saudi Arabia.
 
-Invoice meta:
-- Vendor: {vendor}
-- Global discount: {discount} %
-- VAT: {vat} %
+Vendor: {vendor}
+Global discount: {discount} %
+VAT: {vat} %
 
 Below is invoice line data as JSON list. Each line has:
 product_id, description, quantity, unit_price, subtotal.
@@ -309,7 +296,7 @@ product_id, description, quantity, unit_price, subtotal.
 DATA:
 {json.dumps(sample, ensure_ascii=False)}
 
-TASKS (answer in short bullet points, simple English + little Hindi/Urdu mix):
+Tasks (answer in short bullet points, simple English + little Hindi/Urdu mix):
 1) Overall summary: total items, total quantity, total amount (approx).
 2) Top 5 high-value models with qty & amount.
 3) Any suspicious points: very high qty, strange price, duplicates, etc.
@@ -317,6 +304,16 @@ TASKS (answer in short bullet points, simple English + little Hindi/Urdu mix):
 
 Keep answer concise, max 20 bullets.
 """
+
+    try:
+        completion = client.chat.completions.create(
+            model="moonshotai/Kimi-K2-Instruct-0905",
+            messages=[{"role": "user", "content": prompt}],
+        )
+        # OpenAI-style response object
+        return completion.choices[0].message.content
+    except Exception as e:
+        return f"❌ AI request failed: {e}"
 
 # ---------- LAYOUT TOP ----------
 
@@ -581,25 +578,26 @@ if uploaded_pdf is not None and convert_clicked:
         # ===== AI INSIGHTS =====
         with tab_ai:
             st.markdown("### 🤖 AI Insights (invoice ke hisaab se)")
-            if HF_API_TOKEN == "":
-                st.error("Hugging Face API token set nahi hai. `.streamlit/secrets.toml` me HF_API_TOKEN daalo.")
+
+            if not HF_TOKEN:
+                st.error("HF_TOKEN set nahi hai. `.streamlit/secrets.toml` me HF_TOKEN daalo.")
             else:
+                key = f"{uploaded_pdf.name}_{total_items}_{total_subtotal}"
                 if st.button("Generate AI Insights"):
-                    key = f"{uploaded_pdf.name}_{total_items}_{total_subtotal}"
                     if key in st.session_state["ai_cache"]:
                         ai_text = st.session_state["ai_cache"][key]
                     else:
-                        with st.spinner("AI se analyze ho raha hai... (30–60 sec lag sakte hain)"):
-                            prompt = build_invoice_prompt(df_odoo, vendor_name, discount_pct, vat_pct)
-                            ai_text = call_hf_ai(prompt)
+                        with st.spinner("AI soch raha hai... (thoda time lag sakta hai)"):
+                            ai_text = analyze_invoice_with_ai(
+                                df_odoo, vendor_name, discount_pct, vat_pct
+                            )
                             st.session_state["ai_cache"][key] = ai_text
-
                     st.markdown(ai_text)
 
                 st.markdown(
                     """
                     <div class="footer-note">
-                        Note: Ye AI sirf internal helper hai – final decision hamesha 
+                        Note: Ye AI sirf helper hai – final decision hamesha 
                         tumhare business logic ke hisaab se lo.
                     </div>
                     """,
