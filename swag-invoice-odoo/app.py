@@ -409,7 +409,7 @@ with right:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ---------- Tabs ----------
-tab_overview, tab_details, tab_debug = st.tabs(["📊 Overview", "📋 Details + Graph", "🛠 Debug"])
+tab_overview, tab_details, tab_debug = st.tabs(["📊 Overview", "📋 Details + "🛠 Debug"])
 
 df_odoo = None
 full_text = ""
@@ -621,3 +621,4 @@ if uploaded_pdf is not None and convert_clicked:
 elif uploaded_pdf is None:
     with tab_overview:
         st.info("📂 Upar se PDF select karo. Ye app kisi bhi format ka PDF handle kar sakta hai!")
+
