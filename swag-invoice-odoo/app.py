@@ -13,13 +13,16 @@ st.set_page_config(layout="wide")
 if "history" not in st.session_state:
     st.session_state["history"] = []
 
-# ========== Logo Display (center) ==========
+# ========== Logo Display (center, tight gap) ==========
 logo_col1, logo_col2, logo_col3 = st.columns([1, 2, 1])
 with logo_col2:
     st.image(
         "https://raw.githubusercontent.com/sabeya143111-arch/swag-invoice-odoo/main/swag-invoice-odoo/logo.png",
         use_column_width=True,
     )
+
+# chhota spacer (4px)
+st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
 
 # ---------- Custom CSS ----------
 st.markdown(
@@ -29,7 +32,7 @@ st.markdown(
         background: radial-gradient(circle at top left, #0f172a 0, #020617 45%, #000000 100%);
         color: #e5e7eb;
     }
-    .block-container { padding-top: 0.3rem; }
+    .block-container { padding-top: 0rem; }
 
     .main-title {
         font-size: 2.6rem;
@@ -342,7 +345,7 @@ with right:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ---------- Tabs ----------
-tab_overview, tab_details, tab_debug = st.tabs(["📊 Overview", "📋 Details", "🛠 Debug"])
+tab_overview, tab_details, tab_debug = st.tabs(["📊 Overview", "📋 Details + Graph", "🛠 Debug"])
 
 df_odoo = None
 full_text = ""
@@ -465,7 +468,7 @@ if uploaded_pdf is not None and convert_clicked:
                 st.markdown("### 🕒 Recent conversions")
                 st.table(st.session_state["history"])
 
-        # ===== Details tab =====
+        # ===== Details + Graph tab =====
         with tab_details:
             st.markdown("### 🔍 Filters")
             f1, f2 = st.columns(2)
@@ -487,6 +490,23 @@ if uploaded_pdf is not None and convert_clicked:
             st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
             st.dataframe(filtered_df, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
+
+            # Graph: quantity vs amount by product
+            st.markdown("#### 📈 Quantity vs Amount by Product")
+            agg_df = (
+                df_odoo
+                .groupby("order_line/product_id", as_index=False)
+                .agg(
+                    total_qty=("order_line/product_uom_qty", "sum"),
+                    total_amount=("order_line/price_subtotal", "sum"),
+                )
+                .sort_values("total_amount", ascending=False)
+                .head(15)
+            )
+            if not agg_df.empty:
+                st.bar_chart(
+                    agg_df.set_index("order_line/product_id")[["total_qty", "total_amount"]]
+                )
 
             top5 = df_odoo.sort_values(
                 "order_line/price_subtotal", ascending=False
