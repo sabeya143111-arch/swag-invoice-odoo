@@ -8,7 +8,7 @@ from io import BytesIO
 
 
 # ========== Logo Display ==========
-st.image("https://raw.githubusercontent.com/sabeya143111-arch/swag-invoice-odoo/main/swag-invoice-odoo/logo.jpeg", width=500)
+st.image("https://raw.githubusercontent.com/sabeya143111-arch/swag-invoice-odoo/main/swag-invoice-odoo/logo.jpeg", width=250,lenth=250)
 st.markdown("---")
 
 st.set_page_config(
@@ -27,16 +27,7 @@ st.markdown(
         color: #e5e7eb;
 )
 
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    }
+  }
     
 
     /* Main title */
@@ -360,6 +351,7 @@ if uploaded_pdf is not None and convert_clicked:
         )
 elif uploaded_pdf is None:
     st.info("Upar se PDF select karo start karne ke liye.")
+
 
 
 
