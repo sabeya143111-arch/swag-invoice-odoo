@@ -44,7 +44,7 @@ if "uploaded_pdf" not in st.session_state:
 if "uploaded_excel" not in st.session_state:
     st.session_state["uploaded_excel"] = None
 if "conversion_mode" not in st.session_state:
-    st.session_state["conversion_mode"] = "pdf_to_excel"  # "pdf_to_excel" ya "excel_to_pdf"
+    st.session_state["conversion_mode"] = "pdf_to_excel"
 if "generated_pdf" not in st.session_state:
     st.session_state["generated_pdf"] = None
 if "excel_df" not in st.session_state:
@@ -421,7 +421,7 @@ def style_excel_file(buffer):
     wb.save(buffer)
     buffer.seek(0)
 
-# ---------- HELPERS: PDF PARSE ----------
+# ---------- PDF PARSE HELPERS ----------
 
 
 def detect_pdf_structure(text: str):
@@ -587,12 +587,12 @@ col_mode1, col_mode2 = st.columns(2)
 with col_mode1:
     if st.button("📄 → 📊 PDF to Excel", key="pdf_mode", use_container_width=True):
         st.session_state["conversion_mode"] = "pdf_to_excel"
-        st.experimental_rerun()
+        st.rerun()
 
 with col_mode2:
     if st.button("📊 → 📄 Excel to PDF", key="excel_mode", use_container_width=True):
         st.session_state["conversion_mode"] = "excel_to_pdf"
-        st.experimental_rerun()
+        st.rerun()
 
 st.markdown("---")
 
@@ -645,9 +645,7 @@ if st.session_state["conversion_mode"] == "pdf_to_excel":
             discount_pct = st.number_input(
                 "Global discount %", 0.0, 100.0, 0.0, 0.5
             )
-            vat_pct = st.number_input(
-                "VAT %", 0.0, 30.0, 0.0, 0.5
-            )
+            vat_pct = st.number_input("VAT %", 0.0, 30.0, 0.0, 0.5)
 
         convert_clicked = st.button("🔁 Convert to Odoo Excel")
 
