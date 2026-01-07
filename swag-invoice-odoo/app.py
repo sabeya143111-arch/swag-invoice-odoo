@@ -39,98 +39,154 @@ with logo_col2:
         use_column_width=False,
         width=420,
     )
-
 st.markdown(
     """
     <style>
+    /* Google Fonts import */
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
     .stApp {
-        background: radial-gradient(circle at top left, #0f172a 0, #020617 45%, #000000 100%);
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: radial-gradient(circle at top left, #020617 0, #020617 40%, #000000 100%);
         color: #e5e7eb;
     }
-    .block-container { padding-top: 0rem; padding-bottom: 0rem; }
+    .block-container {
+        padding-top: 0rem;
+        padding-bottom: 0rem;
+        max-width: 1180px;
+    }
 
     .main-title {
-        font-size: 2.6rem;
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        font-size: 2.7rem;
         font-weight: 800;
-        background: linear-gradient(90deg, #22c55e, #eab308, #f97316);
+        letter-spacing: 0.06em;
+        background: linear-gradient(120deg, #22c55e, #a855f7, #f97316);
         -webkit-background-clip: text;
         color: transparent;
-        letter-spacing: 0.04em;
     }
-    .sub-text { font-size: 0.98rem; color: #ffffff; }
+    .sub-text {
+        font-size: 0.98rem;
+        color: #e5e7eb;
+        opacity: 0.9;
+    }
 
     .glass-card {
-        background: rgba(15, 23, 42, 0.92);
-        border-radius: 18px;
-        padding: 22px 24px;
-        border: 1px solid rgba(148, 163, 184, 0.35);
-        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
-        backdrop-filter: blur(18px);
+        background: radial-gradient(circle at top left, rgba(15,23,42,0.98), rgba(15,23,42,0.92));
+        border-radius: 20px;
+        padding: 24px 26px;
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(22px);
     }
+
     .pill-badge {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
-        font-size: 0.78rem;
-        padding: 4px 10px;
+        gap: 8px;
+        font-size: 0.8rem;
+        padding: 5px 12px;
         border-radius: 999px;
-        border: 1px solid rgba(52, 211, 153, 0.45);
-        color: #ffffff;
-        background: rgba(22, 101, 52, 0.35);
+        border: 1px solid rgba(52, 211, 153, 0.65);
+        color: #bbf7d0;
+        background: linear-gradient(90deg, rgba(22,163,74,0.3), rgba(22,163,74,0.1));
     }
+
     .stat-card {
-        background: rgba(15, 23, 42, 0.95);
-        border-radius: 16px;
+        background: radial-gradient(circle at top left, #020617, #020617 55%, #020617);
+        border-radius: 18px;
         padding: 16px 18px;
-        border: 1px solid rgba(55, 65, 81, 0.8);
-        transition: all 0.3s ease;
+        border: 1px solid rgba(55, 65, 81, 0.9);
+        transition: all 0.25s ease;
     }
     .stat-card:hover {
-        border-color: rgba(52, 211, 153, 0.6);
-        box-shadow: 0 8px 16px rgba(52, 211, 153, 0.2);
+        border-color: rgba(129, 230, 217, 0.9);
+        box-shadow: 0 16px 30px rgba(15, 118, 110, 0.45);
+        transform: translateY(-2px);
     }
+
     .stat-label {
-        font-size: 0.7rem;
+        font-size: 0.72rem;
         text-transform: uppercase;
         color: #9ca3af;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.14em;
     }
     .stat-value {
-        font-size: 1.6rem;
+        font-size: 1.7rem;
         font-weight: 700;
         color: #22c55e;
         margin-top: 4px;
     }
+
     .dataframe-container {
-        border-radius: 14px;
-        border: 1px solid rgba(148, 163, 184, 0.5);
+        border-radius: 16px;
+        border: 1px solid rgba(148, 163, 184, 0.55);
         overflow: hidden;
+        box-shadow: 0 18px 38px rgba(15, 23, 42, 0.9);
     }
+
     .success-badge {
-        background: rgba(34, 197, 94, 0.15);
-        color: #22c55e;
+        background: linear-gradient(120deg, rgba(22,163,74,0.16), rgba(34,197,94,0.12));
+        color: #bbf7d0;
         padding: 12px 16px;
-        border-radius: 10px;
+        border-radius: 12px;
         border-left: 4px solid #22c55e;
-        font-size: 0.9rem;
+        font-size: 0.92rem;
         margin: 12px 0;
     }
     .warning-badge {
-        background: rgba(248, 171, 89, 0.10);
-        color: #fdba74;
+        background: linear-gradient(120deg, rgba(248,171,89,0.18), rgba(248,113,113,0.13));
+        color: #fed7aa;
         padding: 10px 14px;
-        border-radius: 10px;
+        border-radius: 12px;
         border-left: 4px solid #f97316;
-        font-size: 0.85rem;
+        font-size: 0.9rem;
         margin: 8px 0;
     }
+
     .footer-note {
-        font-size: 0.78rem;
-        color: #6b7280;
+        font-size: 0.8rem;
+        color: #9ca3af;
         text-align: center;
         margin-top: 18px;
     }
+
+    /* Streamlit default widgets thoda premium look */
+    .stButton > button {
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        border-radius: 999px;
+        padding: 0.55rem 1.4rem;
+        border: 1px solid rgba(34,197,94,0.7);
+        background: linear-gradient(135deg, #22c55e, #15803d);
+        color: #000000;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        box-shadow: 0 14px 30px rgba(34,197,94,0.45);
+        transition: all 0.2s ease;
+    }
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #4ade80, #16a34a);
+        transform: translateY(-1px);
+        box-shadow: 0 18px 40px rgba(34,197,94,0.6);
+    }
+
+    .stTextInput > div > input, .stNumberInput input {
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        border-radius: 999px;
+        border: 1px solid rgba(148,163,184,0.7);
+        background: rgba(15,23,42,0.9);
+        color: #e5e7eb;
+    }
+    .stTextInput > div > input:focus, .stNumberInput input:focus {
+        border-color: rgba(56,189,248,0.9);
+        box-shadow: 0 0 0 1px rgba(56,189,248,0.9);
+    }
     </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
     """,
     unsafe_allow_html=True,
 )
@@ -630,3 +686,4 @@ if uploaded_pdf is not None and convert_clicked:
 elif uploaded_pdf is None:
     with tab_overview:
         st.info("📂 Upar se PDF select karo start karne ke liye.")
+
