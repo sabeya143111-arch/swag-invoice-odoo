@@ -2,6 +2,8 @@ streamlit
 pdfplumber
 pandas
 openpyxl
-openai>=1.6.0
+openai
+reportlab>=4.0.0
+
 
 
