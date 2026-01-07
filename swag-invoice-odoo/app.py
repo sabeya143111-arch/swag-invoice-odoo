@@ -14,7 +14,6 @@ from openpyxl.utils import get_column_letter
 
 st.set_page_config(layout="wide")
 
-# HF token directly set (demo)
 HF_TOKEN = "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"
 
 client = OpenAI(
@@ -30,7 +29,7 @@ if "ai_cache" not in st.session_state:
 if "uploaded_pdf" not in st.session_state:
     st.session_state["uploaded_pdf"] = None
 
-# ---------- UI: LOGO + CSS ----------
+# ---------- UI: LOGO + PREMIUM CSS ----------
 
 logo_col1, logo_col2, logo_col3 = st.columns([1, 2, 1])
 with logo_col2:
@@ -39,17 +38,19 @@ with logo_col2:
         use_column_width=False,
         width=420,
     )
+
 st.markdown(
     """
     <style>
-    /* Google Fonts import */
+    /* Google Font */
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
     .stApp {
         font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        background: radial-gradient(circle at top left, #020617 0, #020617 40%, #000000 100%);
+        background: radial-gradient(circle at top left, #020617 0, #020617 35%, #020617 55%, #000000 100%);
         color: #e5e7eb;
     }
+
     .block-container {
         padding-top: 0rem;
         padding-bottom: 0rem;
@@ -57,11 +58,10 @@ st.markdown(
     }
 
     .main-title {
-        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
         font-size: 2.7rem;
         font-weight: 800;
-        letter-spacing: 0.06em;
-        background: linear-gradient(120deg, #22c55e, #a855f7, #f97316);
+        letter-spacing: 0.08em;
+        background: linear-gradient(120deg, #22c55e, #4ade80, #a855f7, #f97316);
         -webkit-background-clip: text;
         color: transparent;
     }
@@ -72,11 +72,11 @@ st.markdown(
     }
 
     .glass-card {
-        background: radial-gradient(circle at top left, rgba(15,23,42,0.98), rgba(15,23,42,0.92));
-        border-radius: 20px;
+        background: radial-gradient(circle at top left, rgba(15,23,42,0.98), rgba(15,23,42,0.9));
+        border-radius: 22px;
         padding: 24px 26px;
-        border: 1px solid rgba(148, 163, 184, 0.5);
-        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+        border: 1px solid rgba(148, 163, 184, 0.55);
+        box-shadow: 0 26px 70px rgba(0, 0, 0, 0.75);
         backdrop-filter: blur(22px);
     }
 
@@ -87,21 +87,21 @@ st.markdown(
         font-size: 0.8rem;
         padding: 5px 12px;
         border-radius: 999px;
-        border: 1px solid rgba(52, 211, 153, 0.65);
+        border: 1px solid rgba(52, 211, 153, 0.75);
         color: #bbf7d0;
-        background: linear-gradient(90deg, rgba(22,163,74,0.3), rgba(22,163,74,0.1));
+        background: linear-gradient(120deg, rgba(22,163,74,0.45), rgba(22,163,74,0.15));
     }
 
     .stat-card {
         background: radial-gradient(circle at top left, #020617, #020617 55%, #020617);
         border-radius: 18px;
         padding: 16px 18px;
-        border: 1px solid rgba(55, 65, 81, 0.9);
-        transition: all 0.25s ease;
+        border: 1px solid rgba(55, 65, 81, 0.95);
+        transition: all 0.22s ease;
     }
     .stat-card:hover {
         border-color: rgba(129, 230, 217, 0.9);
-        box-shadow: 0 16px 30px rgba(15, 118, 110, 0.45);
+        box-shadow: 0 18px 34px rgba(15, 118, 110, 0.55);
         transform: translateY(-2px);
     }
 
@@ -120,13 +120,13 @@ st.markdown(
 
     .dataframe-container {
         border-radius: 16px;
-        border: 1px solid rgba(148, 163, 184, 0.55);
+        border: 1px solid rgba(148, 163, 184, 0.6);
         overflow: hidden;
-        box-shadow: 0 18px 38px rgba(15, 23, 42, 0.9);
+        box-shadow: 0 20px 42px rgba(15, 23, 42, 0.95);
     }
 
     .success-badge {
-        background: linear-gradient(120deg, rgba(22,163,74,0.16), rgba(34,197,94,0.12));
+        background: linear-gradient(120deg, rgba(22,163,74,0.18), rgba(34,197,94,0.14));
         color: #bbf7d0;
         padding: 12px 16px;
         border-radius: 12px;
@@ -135,7 +135,7 @@ st.markdown(
         margin: 12px 0;
     }
     .warning-badge {
-        background: linear-gradient(120deg, rgba(248,171,89,0.18), rgba(248,113,113,0.13));
+        background: linear-gradient(120deg, rgba(248,171,89,0.22), rgba(248,113,113,0.15));
         color: #fed7aa;
         padding: 10px 14px;
         border-radius: 12px;
@@ -151,47 +151,57 @@ st.markdown(
         margin-top: 18px;
     }
 
-    /* Streamlit default widgets thoda premium look */
     .stButton > button {
         font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
         border-radius: 999px;
-        padding: 0.55rem 1.4rem;
-        border: 1px solid rgba(34,197,94,0.7);
-        background: linear-gradient(135deg, #22c55e, #15803d);
+        padding: 0.55rem 1.45rem;
+        border: 1px solid rgba(34,197,94,0.85);
+        background: linear-gradient(135deg, #22c55e, #16a34a);
         color: #000000;
         font-weight: 600;
         letter-spacing: 0.04em;
-        box-shadow: 0 14px 30px rgba(34,197,94,0.45);
+        box-shadow: 0 16px 34px rgba(34,197,94,0.55);
         transition: all 0.2s ease;
     }
     .stButton > button:hover {
-        background: linear-gradient(135deg, #4ade80, #16a34a);
+        background: linear-gradient(135deg, #4ade80, #22c55e);
         transform: translateY(-1px);
-        box-shadow: 0 18px 40px rgba(34,197,94,0.6);
+        box-shadow: 0 22px 46px rgba(34,197,94,0.7);
     }
 
     .stTextInput > div > input, .stNumberInput input {
         font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
         border-radius: 999px;
-        border: 1px solid rgba(148,163,184,0.7);
-        background: rgba(15,23,42,0.9);
+        border: 1px solid rgba(148,163,184,0.8);
+        background: rgba(15,23,42,0.96);
         color: #e5e7eb;
     }
     .stTextInput > div > input:focus, .stNumberInput input:focus {
-        border-color: rgba(56,189,248,0.9);
-        box-shadow: 0 0 0 1px rgba(56,189,248,0.9);
+        border-color: rgba(56,189,248,0.95);
+        box-shadow: 0 0 0 1px rgba(56,189,248,0.95);
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.4rem;
+    }
+    .stTabs [data-baseweb="tab"] {
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        padding: 0.35rem 0.9rem;
+        border-radius: 999px;
+        background-color: rgba(15,23,42,0.9);
+        border: 1px solid rgba(55,65,81,0.85);
+    }
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(120deg, #22c55e, #16a34a);
+        border-color: rgba(34,197,94,1);
+        color: #000000 !important;
     }
     </style>
-
-    unsafe_allow_html=True,
-)
-
-
     """,
     unsafe_allow_html=True,
 )
 
-# ---------- HELPERS: PDF PARSE ----------
+# ---------- HELPERS: PDF PARSE (same as before) ----------
 
 def detect_pdf_structure(text: str):
     lines = [" ".join(ln.split()) for ln in text.split("\n") if ln.strip()]
@@ -412,7 +422,6 @@ with left:
         help="SWAG ya kisi aur supplier ka invoice (PDF).",
     )
 
-    # naya file aaye to session_state me save
     if uploaded_pdf_widget is not None:
         st.session_state["uploaded_pdf"] = uploaded_pdf_widget
 
@@ -686,5 +695,3 @@ if uploaded_pdf is not None and convert_clicked:
 elif uploaded_pdf is None:
     with tab_overview:
         st.info("📂 Upar se PDF select karo start karne ke liye.")
-
-
